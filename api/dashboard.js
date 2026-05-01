@@ -1,3 +1,34 @@
+async function getValidToken() {
+  const CLIENT_ID = process.env.CLOUDBEDS_CLIENT_ID
+  const CLIENT_SECRET = process.env.CLOUDBEDS_CLIENT_SECRET
+  const REFRESH_TOKEN = process.env.CLOUDBEDS_REFRESH_TOKEN
+  const ACCESS_TOKEN = process.env.CLOUDBEDS_ACCESS_TOKEN
+
+  // Intentar con el token actual primero
+  const testRes = await fetch('https://api.cloudbeds.com/api/v1.1/getPropertyInfo', {
+    headers: { 'Authorization': `Bearer ${ACCESS_TOKEN}` }
+  })
+
+  if (testRes.status === 200) return ACCESS_TOKEN
+
+  // Si falló, renovar con refresh token
+  const params = new URLSearchParams({
+    grant_type: 'refresh_token',
+    client_id: CLIENT_ID,
+    client_secret: CLIENT_SECRET,
+    refresh_token: REFRESH_TOKEN
+  })
+
+  const refreshRes = await fetch('https://hotels.cloudbeds.com/api/v1.1/access_token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString()
+  })
+
+  const refreshData = await refreshRes.json()
+  return refreshData.access_token || ACCESS_TOKEN
+}
+
 export default async function handler(req, res) {
   try {
     res.setHeader('Access-Control-Allow-Origin', '*')
@@ -6,16 +37,15 @@ export default async function handler(req, res) {
 
     if (req.method === 'OPTIONS') return res.status(200).end()
 
-    const ACCESS_TOKEN = process.env.CLOUDBEDS_ACCESS_TOKEN
+    const token = await getValidToken()
     const today = new Date().toISOString().split('T')[0]
 
     const headers = {
-      'Authorization': `Bearer ${ACCESS_TOKEN}`,
+      'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
       'Accept': 'application/json'
     }
 
-    // Fetch en paralelo
     const [enCasaRes, llegadasRes, salidasRes] = await Promise.all([
       fetch(`https://api.cloudbeds.com/api/v1.1/getReservations?status=checked_in&pageSize=100`, { headers }),
       fetch(`https://api.cloudbeds.com/api/v1.1/getReservations?status=not_checked_in&checkIn=${today}&pageSize=100`, { headers }),
@@ -53,6 +83,7 @@ export default async function handler(req, res) {
       totalHabitaciones,
       adr,
       revpar,
+      tokenRenovado: token !== process.env.CLOUDBEDS_ACCESS_TOKEN,
       llegadasDetalle: (llegadasData?.data || []).slice(0, 10).map(r => ({
         nombre: r.guestName || `${r.guest?.firstName || ''} ${r.guest?.lastName || ''}`.trim() || 'Huésped',
         habitacion: r.roomNumber || r.assignedRoom || r.roomTypeNameShort || '—',
@@ -65,9 +96,3 @@ export default async function handler(req, res) {
         salida: r.endDate || r.checkOut || '—',
         total: parseFloat(r.grandTotal || r.totalPrice || 0)
       }))
-    })
-
-  } catch (error) {
-    return res.status(500).json({ error: error.message })
-  }
-}
