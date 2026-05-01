@@ -2,10 +2,13 @@
   "functions": {
     "api/concierge.js": {
       "maxDuration": 30
+    },
+    "api/test.js": {
+      "maxDuration": 10
     }
   },
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/$1" },
-    { "source": "/(.*)", "destination": "/index.html" }
+  "routes": [
+    { "src": "/api/(.*)", "dest": "/api/$1" },
+    { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
