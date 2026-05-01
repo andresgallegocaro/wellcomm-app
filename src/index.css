@@ -1,0 +1,38 @@
+:root {
+  --color-bg: #E8F0EC;
+  --color-bg-dark: #1A1A1A;
+  --color-primary: #7EC8A0;
+  --color-primary-dark: #5aaa80;
+  --color-text: #1A1A1A;
+  --color-text-light: #5a5a5a;
+  --color-white: #FFFFFF;
+  --color-card: #FFFFFF;
+  --color-border: #d0ddd5;
+  --font-display: 'Cormorant Garamond', serif;
+  --font-body: 'DM Sans', sans-serif;
+  --radius: 12px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.08);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  cursor: pointer;
+  font-family: var(--font-body);
+}
+
+input, textarea, select {
+  font-family: var(--font-body);
+}
