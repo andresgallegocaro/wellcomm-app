@@ -1,4 +1,4 @@
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   try {
     res.setHeader('Access-Control-Allow-Origin', '*')
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
@@ -47,7 +47,7 @@ INFORMACIÓN DEL HOTEL:
 - Servicios: Spa Siana, terraza con pizza (Poster), aromaterapia en check-in, Ochibori
 - PMS: Cloudbeds | Revenue: PricePoint | F&B: Poster | Spa: Siana
 - Tarifas: COP $320.000 – $500.000 según demanda
-- Ocupación objetivo: >65% | ADR objetivo: >COP $365.000
+- Ocupación objetivo: más del 65% | ADR objetivo: más de COP $365.000
 
 CONTEXTO NOTION:
 ${notionContent.slice(0, 4000)}`
