@@ -7,75 +7,36 @@ export default async function handler(req, res) {
     if (req.method === 'OPTIONS') return res.status(200).end()
 
     const CLOUDBEDS_API_KEY = process.env.CLOUDBEDS_API_KEY
-
     const today = new Date().toISOString().split('T')[0]
-    const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0]
 
-    // Fetch reservas de hoy
-    const [reservasRes, ocupacionRes] = await Promise.all([
-      fetch(`https://api.cloudbeds.com/api/v1.1/getReservations?status=checked_in&dateFrom=${today}&dateTo=${today}`, {
-        headers: {
-          'Authorization': `Bearer ${CLOUDBEDS_API_KEY}`,
-          'Content-Type': 'application/json'
-        }
-      }),
-      fetch(`https://api.cloudbeds.com/api/v1.1/getPropertyInfo`, {
-        headers: {
-          'Authorization': `Bearer ${CLOUDBEDS_API_KEY}`,
-          'Content-Type': 'application/json'
-        }
-      })
-    ])
-
-    const reservasData = await reservasRes.json()
-    const propData = await ocupacionRes.json()
-
-    // Llegadas de hoy
-    const llegadasRes = await fetch(`https://api.cloudbeds.com/api/v1.1/getReservations?status=not_checked_in&dateFrom=${today}&dateTo=${today}`, {
+    // Probar primero con getHotels para verificar autenticación
+    const testRes = await fetch('https://api.cloudbeds.com/api/v1.1/getHotels', {
       headers: {
-        'Authorization': `Bearer ${CLOUDBEDS_API_KEY}`,
-        'Content-Type': 'application/json'
+        'Authorization': `apikey ${CLOUDBEDS_API_KEY}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
       }
     })
-    const llegadasData = await llegadasRes.json()
 
-    // Salidas de hoy
-    const salidasRes = await fetch(`https://api.cloudbeds.com/api/v1.1/getReservations?status=checked_in&dateFrom=${today}&dateTo=${today}&checkOut=${today}`, {
-      headers: {
-        'Authorization': `Bearer ${CLOUDBEDS_API_KEY}`,
-        'Content-Type': 'application/json'
-      }
-    })
-    const salidasData = await salidasRes.json()
-
-    const enCasa = reservasData?.data?.length || 0
-    const llegadas = llegadasData?.data?.length || 0
-    const salidas = salidasData?.data?.length || 0
-    const totalHabitaciones = 25
-
-    const ocupacion = Math.round((enCasa / totalHabitaciones) * 100)
-
-    // Calcular ADR
-    let totalRevenue = 0
-    if (reservasData?.data?.length > 0) {
-      reservasData.data.forEach(r => {
-        totalRevenue += parseFloat(r.totalPrice || 0)
+    const testText = await testRes.text()
+    
+    // Intentar parsear
+    let testData
+    try {
+      testData = JSON.parse(testText)
+    } catch(e) {
+      return res.status(200).json({ 
+        debug: true,
+        error: 'Cloudbeds no devuelve JSON',
+        status: testRes.status,
+        respuesta_raw: testText.slice(0, 500)
       })
     }
-    const adr = enCasa > 0 ? Math.round(totalRevenue / enCasa) : 0
-    const revpar = Math.round((ocupacion / 100) * adr)
 
     return res.status(200).json({
-      fecha: today,
-      ocupacion,
-      enCasa,
-      llegadas,
-      salidas,
-      totalHabitaciones,
-      adr,
-      revpar,
-      reservasDetalle: reservasData?.data?.slice(0, 10) || [],
-      llegadasDetalle: llegadasData?.data?.slice(0, 10) || [],
+      debug: true,
+      status: testRes.status,
+      data: testData
     })
 
   } catch (error) {
