@@ -2,16 +2,7 @@ async function getValidToken() {
   const CLIENT_ID = process.env.CLOUDBEDS_CLIENT_ID
   const CLIENT_SECRET = process.env.CLOUDBEDS_CLIENT_SECRET
   const REFRESH_TOKEN = process.env.CLOUDBEDS_REFRESH_TOKEN
-  const ACCESS_TOKEN = process.env.CLOUDBEDS_ACCESS_TOKEN
 
-  // Intentar con el token actual primero
-  const testRes = await fetch('https://api.cloudbeds.com/api/v1.1/getPropertyInfo', {
-    headers: { 'Authorization': `Bearer ${ACCESS_TOKEN}` }
-  })
-
-  if (testRes.status === 200) return ACCESS_TOKEN
-
-  // Si falló, renovar con refresh token
   const params = new URLSearchParams({
     grant_type: 'refresh_token',
     client_id: CLIENT_ID,
@@ -26,7 +17,7 @@ async function getValidToken() {
   })
 
   const refreshData = await refreshRes.json()
-  return refreshData.access_token || ACCESS_TOKEN
+  return refreshData.access_token || process.env.CLOUDBEDS_ACCESS_TOKEN
 }
 
 export default async function handler(req, res) {
@@ -46,53 +37,4 @@ export default async function handler(req, res) {
       'Accept': 'application/json'
     }
 
-    const [enCasaRes, llegadasRes, salidasRes] = await Promise.all([
-      fetch(`https://api.cloudbeds.com/api/v1.1/getReservations?status=checked_in&pageSize=100`, { headers }),
-      fetch(`https://api.cloudbeds.com/api/v1.1/getReservations?status=not_checked_in&checkIn=${today}&pageSize=100`, { headers }),
-      fetch(`https://api.cloudbeds.com/api/v1.1/getReservations?status=checked_in&checkOut=${today}&pageSize=100`, { headers }),
-    ])
-
-    const [enCasaData, llegadasData, salidasData] = await Promise.all([
-      enCasaRes.json(),
-      llegadasRes.json(),
-      salidasRes.json(),
-    ])
-
-    const enCasa = enCasaData?.data?.length || 0
-    const llegadas = llegadasData?.data?.length || 0
-    const salidas = salidasData?.data?.length || 0
-    const totalHabitaciones = 25
-    const ocupacion = Math.round((enCasa / totalHabitaciones) * 100)
-
-    let totalRevenue = 0
-    if (enCasaData?.data?.length > 0) {
-      enCasaData.data.forEach(r => {
-        totalRevenue += parseFloat(r.grandTotal || r.totalPrice || r.balance || 0)
-      })
-    }
-
-    const adr = enCasa > 0 ? Math.round(totalRevenue / enCasa) : 0
-    const revpar = Math.round((ocupacion / 100) * adr)
-
-    return res.status(200).json({
-      fecha: today,
-      ocupacion,
-      enCasa,
-      llegadas,
-      salidas,
-      totalHabitaciones,
-      adr,
-      revpar,
-      tokenRenovado: token !== process.env.CLOUDBEDS_ACCESS_TOKEN,
-      llegadasDetalle: (llegadasData?.data || []).slice(0, 10).map(r => ({
-        nombre: r.guestName || `${r.guest?.firstName || ''} ${r.guest?.lastName || ''}`.trim() || 'Huésped',
-        habitacion: r.roomNumber || r.assignedRoom || r.roomTypeNameShort || '—',
-        noches: r.nights || '—',
-        total: parseFloat(r.grandTotal || r.totalPrice || 0)
-      })),
-      enCasaDetalle: (enCasaData?.data || []).slice(0, 10).map(r => ({
-        nombre: r.guestName || `${r.guest?.firstName || ''} ${r.guest?.lastName || ''}`.trim() || 'Huésped',
-        habitacion: r.roomNumber || r.assignedRoom || r.roomTypeNameShort || '—',
-        salida: r.endDate || r.checkOut || '—',
-        total: parseFloat(r.grandTotal || r.totalPrice || 0)
-      }))
+    const [enCasaRes, llegadas
