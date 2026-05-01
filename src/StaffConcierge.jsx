@@ -9,7 +9,7 @@ const SUGGESTED_QUESTIONS = [
   '¿Cómo funciona el Revenue Management con PricePoint?',
 ]
 
-export default function StaffConcierge({ onBack }) {
+export default function StaffConcierge({ onBack, onDashboard }) {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
@@ -75,13 +75,17 @@ export default function StaffConcierge({ onBack }) {
             WELLCOMM SPA & HOTEL · CONTEXTO NOTION ACTIVO
           </div>
         </div>
-        <div style={{
+        <button onClick={onDashboard} style={{
           marginLeft: 'auto',
-          width: 8, height: 8,
-          borderRadius: '50%',
-          background: '#7EC8A0',
-          boxShadow: '0 0 6px #7EC8A0'
-        }} />
+          background: 'var(--color-primary)',
+          border: 'none',
+          borderRadius: '20px',
+          color: 'white',
+          fontSize: '0.72rem',
+          padding: '0.4rem 0.75rem',
+          cursor: 'pointer',
+          letterSpacing: '0.05em'
+        }}>📊 Dashboard</button>
       </div>
 
       {/* Suggested questions */}
@@ -100,7 +104,6 @@ export default function StaffConcierge({ onBack }) {
                 fontSize: '0.75rem',
                 color: 'var(--color-text)',
                 cursor: 'pointer',
-                transition: 'background 0.15s'
               }}>{q}</button>
             ))}
           </div>
