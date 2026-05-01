@@ -1,4 +1,4 @@
-export const config = { runtime: 'edge' }
+export const config = { runtime: 'nodejs' }
 
 const NOTION_TOKEN = process.env.NOTION_TOKEN
 const NOTION_PAGE_ID = process.env.NOTION_PAGE_ID
