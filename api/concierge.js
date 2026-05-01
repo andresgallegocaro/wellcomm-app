@@ -11,9 +11,9 @@ module.exports = async function handler(req, res) {
     const NOTION_TOKEN = process.env.NOTION_TOKEN
     const NOTION_PAGE_ID = process.env.NOTION_PAGE_ID
 
-    const { message } = req.body
+    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body
+    const { message } = body
 
-    // Leer Notion
     let notionContent = ''
     try {
       const notionRes = await fetch(`https://api.notion.com/v1/blocks/${NOTION_PAGE_ID}/children?page_size=30`, {
@@ -34,7 +34,7 @@ module.exports = async function handler(req, res) {
         }
       }
     } catch (e) {
-      notionContent = 'No se pudo cargar Notion.'
+      notionContent = ''
     }
 
     const systemPrompt = `Eres el Concierge IA interno de WELLcomm Spa & Hotel, un hotel boutique wellness de 25 habitaciones en Manila, Medellín. Gestionado por SOLARA Homes S.A.S. Responde siempre en español, de forma precisa y profesional.
@@ -48,8 +48,6 @@ INFORMACIÓN DEL HOTEL:
 - PMS: Cloudbeds | Revenue: PricePoint | F&B: Poster | Spa: Siana
 - Tarifas: COP $320.000 – $500.000 según demanda
 - Ocupación objetivo: >65% | ADR objetivo: >COP $365.000
-- EBITDA mejorado 30% desde Oct 2025
-- Venta directa: 25% del total
 
 CONTEXTO NOTION:
 ${notionContent.slice(0, 4000)}`
