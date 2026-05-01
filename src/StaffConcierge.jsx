@@ -13,7 +13,7 @@ export default function StaffConcierge({ onBack, onDashboard }) {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      text: '¡Hola! Soy el Concierge IA interno de WELLcomm. Tengo acceso a toda la documentación del hotel en Notion. ¿En qué te puedo ayudar hoy?'
+      text: '✳ Welcome to WELLcomm\n\n¿En qué puedo ayudarte hoy?'
     }
   ])
   const [input, setInput] = useState('')
