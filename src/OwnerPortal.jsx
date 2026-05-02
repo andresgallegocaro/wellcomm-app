@@ -293,3 +293,241 @@ export default function OwnerPortal({ onBack }) {
                 <div style={{ background: C.dark, borderRadius: 12, padding: '1rem', marginBottom: '1rem' }}>
                   <div style={{ fontSize: '0.68rem', color: C.primary, letterSpacing: '0.1em', marginBottom: '0.75rem' }}>✳ DATOS EN VIVO · CLOUDBEDS</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
+                    {[
+                      { label: 'OCUPACIÓN', val: `${cb.ocupacion || 0}%`, sub: `${cb.enCasa || 0}/25 hab.` },
+                      { label: 'ADR', val: fmt(cb.adr), sub: 'Tarifa media' },
+                      { label: 'RevPAR', val: fmt(cb.revpar), sub: 'Por hab. disp.' },
+                    ].map((k, i) => (
+                      <div key={i} style={{ textAlign: 'center' }}>
+                        <div style={{ color: C.primary, fontSize: '1.3rem', fontWeight: 600, fontFamily: 'var(--font-display)' }}>{k.val}</div>
+                        <div style={{ color: '#888', fontSize: '0.65rem', letterSpacing: '0.05em' }}>{k.label}</div>
+                        <div style={{ color: '#666', fontSize: '0.62rem' }}>{k.sub}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* KPIs financieros */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
+                  {[
+                    { icon: '💰', label: 'INGRESOS TOTALES', val: fmt(r.totalIngresos), sub: fmtCOP(r.totalIngresos), color: C.primary },
+                    { icon: '📋', label: 'GASTOS TOTALES', val: fmt(r.totalGastos), sub: fmtCOP(r.totalGastos), color: '#e67e22' },
+                    { icon: '📊', label: 'GOP', val: fmt(r.GOP), sub: 'Gross Operating Profit', color: r.GOP > 0 ? C.primary : '#e74c3c' },
+                    { icon: '✅', label: 'UTILIDAD NETA', val: fmt(r.utilidadNeta), sub: 'Después de fee SOLARA', color: r.utilidadNeta > 0 ? C.primary : '#e74c3c' },
+                  ].map((k, i) => (
+                    <div key={i} style={{ background: C.white, borderRadius: 12, padding: '1rem', border: `1px solid ${C.light}`, borderTop: `3px solid ${k.color}` }}>
+                      <div style={{ fontSize: '1.2rem', marginBottom: '0.4rem' }}>{k.icon}</div>
+                      <div style={{ fontSize: '0.65rem', color: C.muted, letterSpacing: '0.08em', marginBottom: '0.25rem' }}>{k.label}</div>
+                      <div style={{ fontSize: '1.3rem', fontWeight: 600, color: k.color, fontFamily: 'var(--font-display)' }}>{k.val}</div>
+                      <div style={{ fontSize: '0.65rem', color: C.muted, marginTop: '0.15rem' }}>{k.sub}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Fee SOLARA */}
+                <div style={{ background: C.dark, borderRadius: 12, padding: '1.25rem' }}>
+                  <div style={{ color: C.primary, fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.75rem', fontFamily: 'var(--font-display)' }}>
+                    ✳ Fee SOLARA — {mes}
+                  </div>
+                  {[
+                    { label: 'Fee fijo mensual', val: fmtCOP(r.feeSolaraFijo), color: '#aaa' },
+                    { label: `Fee variable (5% GOP = 5% de ${fmtCOP(r.GOP)})`, val: fmtCOP(r.feeSolaraVariable), color: '#aaa' },
+                    { label: 'Total fee SOLARA', val: fmtCOP(r.feeSolaraTotal), color: C.primary, bold: true },
+                  ].map((row, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: i < 2 ? `1px solid rgba(255,255,255,0.08)` : 'none' }}>
+                      <span style={{ fontSize: '0.78rem', color: '#888' }}>{row.label}</span>
+                      <span style={{ fontSize: '0.82rem', color: row.color, fontWeight: row.bold ? 700 : 400 }}>{row.val}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* INGRESOS */}
+            {seccion === 'ingresos' && (
+              <div>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: 300, marginBottom: '1.25rem' }}>Ingresos del Mes</div>
+
+                {/* Por fuente */}
+                <div style={{ background: C.white, borderRadius: 12, padding: '1.25rem', marginBottom: '1rem', border: `1px solid ${C.light}` }}>
+                  <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', marginBottom: '1rem' }}>Por fuente</div>
+                  {[
+                    { label: '🏨 Habitaciones', val: data.gastos.ingresos.habitaciones, fuente: 'Cloudbeds' },
+                    { label: '🍕 Terraza / F&B', val: data.gastos.ingresos.terraza, fuente: 'Poster' },
+                    { label: '💆 Spa Siana', val: data.gastos.ingresos.spa, fuente: 'Siana' },
+                    { label: '✨ Upselling', val: data.gastos.ingresos.upselling, fuente: 'Manual' },
+                    { label: '📦 Otros', val: data.gastos.ingresos.otrosIngresos, fuente: 'Manual' },
+                  ].map((item, i) => {
+                    const pct = r.totalIngresos > 0 ? Math.round((item.val / r.totalIngresos) * 100) : 0
+                    return (
+                      <div key={i} style={{ marginBottom: '0.75rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                          <span style={{ fontSize: '0.82rem', color: C.dark }}>{item.label}</span>
+                          <span style={{ fontSize: '0.82rem', fontWeight: 600, color: C.dark }}>{fmtCOP(item.val)}</span>
+                        </div>
+                        <div style={{ background: C.light, borderRadius: 4, height: 6 }}>
+                          <div style={{ width: `${pct}%`, background: C.primary, height: 6, borderRadius: 4, transition: 'width 0.5s' }} />
+                        </div>
+                        <div style={{ fontSize: '0.65rem', color: C.muted, marginTop: '0.15rem' }}>{pct}% · Fuente: {item.fuente}</div>
+                      </div>
+                    )
+                  })}
+                  <div style={{ borderTop: `2px solid ${C.dark}`, paddingTop: '0.75rem', marginTop: '0.5rem', display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem' }}>Total ingresos</span>
+                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: 600, color: C.primary }}>{fmtCOP(r.totalIngresos)}</span>
+                  </div>
+                </div>
+
+                {/* Reservas actuales Cloudbeds */}
+                {cb.reservas?.length > 0 && (
+                  <div style={{ background: C.white, borderRadius: 12, padding: '1.25rem', border: `1px solid ${C.light}` }}>
+                    <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', marginBottom: '0.75rem' }}>🏨 Huéspedes en casa · Cloudbeds</div>
+                    {cb.reservas.map((r2, i) => (
+                      <div key={i} style={{ padding: '0.6rem 0', borderBottom: i < cb.reservas.length - 1 ? `1px solid ${C.light}` : 'none', display: 'flex', justifyContent: 'space-between' }}>
+                        <div>
+                          <div style={{ fontSize: '0.82rem', fontWeight: 500 }}>{r2.huesped}</div>
+                          <div style={{ fontSize: '0.68rem', color: C.muted }}>Hab. {r2.habitacion} · Sale: {r2.checkout} · {r2.canal}</div>
+                        </div>
+                        <div style={{ fontSize: '0.82rem', fontWeight: 600, color: C.primary }}>{fmtCOP(r2.total)}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* GASTOS */}
+            {seccion === 'gastos' && (
+              <div>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: 300, marginBottom: '0.25rem' }}>Gastos del Mes</div>
+                <div style={{ fontSize: '0.78rem', color: C.muted, marginBottom: '1.25rem' }}>Introduce los gastos del mes para calcular la liquidación</div>
+
+                {/* Resumen rápido */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1.25rem' }}>
+                  {[
+                    { label: 'Gastos fijos', val: r.totalFijos, color: '#3498db' },
+                    { label: 'Gastos variables', val: r.totalVariables, color: '#e67e22' },
+                  ].map((k, i) => (
+                    <div key={i} style={{ background: C.white, borderRadius: 10, padding: '0.875rem', border: `1px solid ${C.light}`, borderTop: `3px solid ${k.color}` }}>
+                      <div style={{ fontSize: '0.68rem', color: C.muted, marginBottom: '0.25rem' }}>{k.label}</div>
+                      <div style={{ fontSize: '1.1rem', fontWeight: 600, color: k.color, fontFamily: 'var(--font-display)' }}>{fmt(k.val)}</div>
+                      <div style={{ fontSize: '0.65rem', color: C.muted }}>{fmtCOP(k.val)}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <GastosForm gastos={data.gastos} onChange={handleGastoChange} mes={mes} />
+              </div>
+            )}
+
+            {/* RESERVAS */}
+            {seccion === 'reservas' && (
+              <div>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: 300, marginBottom: '1.25rem' }}>Reservas en Casa</div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem', marginBottom: '1.25rem' }}>
+                  {[
+                    { label: 'En casa', val: cb.enCasa || 0, emoji: '🏡' },
+                    { label: 'Ocupación', val: `${cb.ocupacion || 0}%`, emoji: '📈' },
+                    { label: 'ADR', val: fmt(cb.adr), emoji: '💵' },
+                  ].map((k, i) => (
+                    <div key={i} style={{ background: C.white, borderRadius: 10, padding: '0.875rem', textAlign: 'center', border: `1px solid ${C.light}` }}>
+                      <div style={{ fontSize: '1.5rem' }}>{k.emoji}</div>
+                      <div style={{ fontSize: '1.2rem', fontWeight: 600, fontFamily: 'var(--font-display)' }}>{k.val}</div>
+                      <div style={{ fontSize: '0.68rem', color: C.muted }}>{k.label}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {cb.reservas?.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {cb.reservas.map((res2, i) => (
+                      <div key={i} style={{ background: C.white, borderRadius: 12, padding: '1rem 1.25rem', border: `1px solid ${C.light}`, borderLeft: `3px solid ${C.primary}` }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <div>
+                            <div style={{ fontWeight: 500, fontSize: '0.88rem' }}>{res2.huesped}</div>
+                            <div style={{ fontSize: '0.72rem', color: C.muted, marginTop: '0.2rem' }}>Hab. {res2.habitacion}</div>
+                            <div style={{ fontSize: '0.72rem', color: C.muted }}>Sale: {res2.checkout}</div>
+                            <div style={{ fontSize: '0.68rem', background: C.bg, color: C.muted, padding: '0.15rem 0.5rem', borderRadius: 10, marginTop: '0.3rem', display: 'inline-block' }}>{res2.canal}</div>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: '0.88rem', fontWeight: 600, color: C.primary }}>{fmtCOP(res2.total)}</div>
+                            <div style={{ fontSize: '0.65rem', color: C.muted, marginTop: '0.15rem' }}>In house</div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '3rem', color: C.muted, fontFamily: 'var(--font-display)' }}>Sin reservas activas en este momento</div>
+                )}
+              </div>
+            )}
+
+            {/* LIQUIDACIÓN */}
+            {seccion === 'liquidacion' && (
+              <div>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: 300, marginBottom: '0.25rem' }}>Liquidación Mensual</div>
+                <div style={{ fontSize: '0.78rem', color: C.muted, marginBottom: '1.25rem' }}>Resumen completo de {mes}</div>
+
+                <div style={{ background: C.dark, borderRadius: 14, padding: '1.5rem', marginBottom: '1rem' }}>
+                  <div style={{ color: C.primary, fontSize: '0.78rem', fontWeight: 600, marginBottom: '1rem', fontFamily: 'var(--font-display)', letterSpacing: '0.1em' }}>
+                    ✳ CUENTA DE RESULTADOS · {mes.toUpperCase()}
+                  </div>
+                  {[
+                    { label: 'Ingresos habitaciones', val: data.gastos.ingresos.habitaciones, type: 'ingreso' },
+                    { label: 'Ingresos terraza (Poster)', val: data.gastos.ingresos.terraza, type: 'ingreso' },
+                    { label: 'Ingresos spa (Siana)', val: data.gastos.ingresos.spa, type: 'ingreso' },
+                    { label: 'Upselling y otros', val: (data.gastos.ingresos.upselling || 0) + (data.gastos.ingresos.otrosIngresos || 0), type: 'ingreso' },
+                    { label: '─── TOTAL INGRESOS', val: r.totalIngresos, type: 'subtotal' },
+                    { label: 'Gastos fijos', val: -r.totalFijos, type: 'gasto' },
+                    { label: 'Gastos variables', val: -r.totalVariables, type: 'gasto' },
+                    { label: '─── GOP (Gross Operating Profit)', val: r.GOP, type: 'subtotal' },
+                    { label: 'Fee fijo SOLARA', val: -r.feeSolaraFijo, type: 'fee' },
+                    { label: `Fee variable SOLARA (5% GOP)`, val: -r.feeSolaraVariable, type: 'fee' },
+                    { label: '═══ UTILIDAD NETA', val: r.utilidadNeta, type: 'total' },
+                  ].map((row, i) => (
+                    <div key={i} style={{
+                      display: 'flex', justifyContent: 'space-between',
+                      padding: '0.5rem 0',
+                      borderBottom: ['subtotal', 'total'].includes(row.type) ? `1px solid rgba(255,255,255,0.15)` : `1px solid rgba(255,255,255,0.05)`,
+                      marginTop: row.type === 'total' ? '0.5rem' : 0
+                    }}>
+                      <span style={{ fontSize: row.type === 'total' ? '0.85rem' : '0.75rem', color: row.type === 'subtotal' ? '#ddd' : row.type === 'total' ? C.white : '#888', fontWeight: ['subtotal', 'total'].includes(row.type) ? 600 : 400 }}>
+                        {row.label}
+                      </span>
+                      <span style={{ fontSize: row.type === 'total' ? '0.95rem' : '0.82rem', fontWeight: ['subtotal', 'total'].includes(row.type) ? 700 : 400, color: row.type === 'total' ? (r.utilidadNeta >= 0 ? C.primary : '#e74c3c') : row.type === 'subtotal' ? '#ddd' : row.type === 'fee' ? '#e67e22' : row.val >= 0 ? C.primary : '#888' }}>
+                        {row.val >= 0 ? fmtCOP(row.val) : `- ${fmtCOP(Math.abs(row.val))}`}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Porcentajes */}
+                <div style={{ background: C.white, borderRadius: 12, padding: '1.25rem', border: `1px solid ${C.light}` }}>
+                  <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', marginBottom: '1rem' }}>Estructura de costos</div>
+                  {[
+                    { label: 'Gastos fijos / Ingresos', val: r.totalIngresos > 0 ? Math.round((r.totalFijos / r.totalIngresos) * 100) : 0, color: '#3498db' },
+                    { label: 'Gastos variables / Ingresos', val: r.totalIngresos > 0 ? Math.round((r.totalVariables / r.totalIngresos) * 100) : 0, color: '#e67e22' },
+                    { label: 'Fee SOLARA / Ingresos', val: r.totalIngresos > 0 ? Math.round((r.feeSolaraTotal / r.totalIngresos) * 100) : 0, color: C.primary },
+                    { label: 'Margen neto', val: r.totalIngresos > 0 ? Math.round((r.utilidadNeta / r.totalIngresos) * 100) : 0, color: C.primaryDark },
+                  ].map((k, i) => (
+                    <div key={i} style={{ marginBottom: '0.75rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
+                        <span style={{ fontSize: '0.78rem', color: C.muted }}>{k.label}</span>
+                        <span style={{ fontSize: '0.78rem', fontWeight: 600, color: k.color }}>{k.val}%</span>
+                      </div>
+                      <div style={{ background: C.light, borderRadius: 4, height: 6 }}>
+                        <div style={{ width: `${Math.min(Math.abs(k.val), 100)}%`, background: k.color, height: 6, borderRadius: 4 }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
