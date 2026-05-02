@@ -7,24 +7,25 @@ async function kvGet(key) {
       headers: { Authorization: `Bearer ${KV_TOKEN}` }
     })
     const data = await res.json()
-    if (!data.result) return null
+    // Upstash devuelve { result: "valor" }
+    if (data.result === null || data.result === undefined) return null
     let result = data.result
-    if (typeof result === 'string') result = JSON.parse(result)
-    if (typeof result === 'string') result = JSON.parse(result)
-    return result
+    // Parsear hasta llegar al array
+    while (typeof result === 'string') {
+      try { result = JSON.parse(result) } catch { break }
+    }
+    return Array.isArray(result) ? result : null
   } catch (e) {
     return null
   }
 }
 
 async function kvSet(key, value) {
-  await fetch(`${KV_URL}/set/${encodeURIComponent(key)}`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${KV_TOKEN}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(JSON.stringify(value))
+  // Upstash REST: /set/key/value
+  const encoded = encodeURIComponent(JSON.stringify(value))
+  await fetch(`${KV_URL}/set/${encodeURIComponent(key)}/${encoded}`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${KV_TOKEN}` }
   })
 }
 
