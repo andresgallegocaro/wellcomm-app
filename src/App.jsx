@@ -6,6 +6,7 @@ import Novedades from './Novedades.jsx'
 import Habitaciones from './Habitaciones.jsx'
 import Solicitudes from './Solicitudes.jsx'
 import Checklist from './Checklist.jsx'
+import GuestApp from './GuestApp.jsx'
 
 const SCREENS = {
   HOME: 'home', GUEST: 'guest', STAFF: 'staff',
@@ -17,8 +18,9 @@ const SCREENS = {
 
 export default function App() {
   const [screen, setScreen] = useState(SCREENS.HOME)
-  const go = (s) => () => setScreen(s)
+  const go = s => () => setScreen(s)
 
+  if (screen === SCREENS.GUEST) return <GuestApp onBack={go(SCREENS.HOME)} />
   if (screen === SCREENS.STAFF) return <StaffConcierge onBack={go(SCREENS.HOME)} onDashboard={go(SCREENS.STAFF_DASHBOARD)} onBriefing={go(SCREENS.STAFF_BRIEFING)} onNovedades={go(SCREENS.STAFF_NOVEDADES)} onHabitaciones={go(SCREENS.STAFF_HABITACIONES)} onSolicitudes={go(SCREENS.STAFF_SOLICITUDES)} onChecklist={go(SCREENS.STAFF_CHECKLIST)} />
   if (screen === SCREENS.STAFF_DASHBOARD) return <Dashboard onBack={go(SCREENS.STAFF)} />
   if (screen === SCREENS.STAFF_BRIEFING) return <Briefing onBack={go(SCREENS.STAFF)} />
@@ -26,7 +28,6 @@ export default function App() {
   if (screen === SCREENS.STAFF_HABITACIONES) return <Habitaciones onBack={go(SCREENS.STAFF)} />
   if (screen === SCREENS.STAFF_SOLICITUDES) return <Solicitudes onBack={go(SCREENS.STAFF)} />
   if (screen === SCREENS.STAFF_CHECKLIST) return <Checklist onBack={go(SCREENS.STAFF)} />
-  if (screen === SCREENS.GUEST) return <PlaceholderScreen onBack={go(SCREENS.HOME)} title="Concierge · Huésped" emoji="🛎️" />
   if (screen === SCREENS.OWNER) return <PlaceholderScreen onBack={go(SCREENS.HOME)} title="Portal Propietario" emoji="📊" />
 
   return <HomeScreen onSelect={setScreen} />
@@ -43,11 +44,11 @@ function HomeScreen({ onSelect }) {
         <div style={{ fontFamily: 'var(--font-body)', fontSize: '0.75rem', letterSpacing: '0.3em', color: 'var(--color-text-light)', marginTop: '0.25rem' }}>SPA & HOTEL · MANILA, MEDELLÍN</div>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%', maxWidth: 360 }}>
-        <MenuCard emoji="🛎️" title="Soy huésped" subtitle="Concierge, servicios y experiencias" light={false} color="var(--color-primary)" onClick={() => onSelect(SCREENS.GUEST)} />
+        <MenuCard emoji="🛎️" title="Soy huésped" subtitle="Check-in · Concierge · Servicios · Explorar" light={false} color="var(--color-primary)" onClick={() => onSelect(SCREENS.GUEST)} />
         <MenuCard emoji="👥" title="Soy del equipo" subtitle="Concierge · Dashboard · Briefing · Novedades · Habitaciones · Solicitudes · Checklist" light color="var(--color-text)" onClick={() => onSelect(SCREENS.STAFF)} />
         <MenuCard emoji="📊" title="Soy propietario" subtitle="Revenue · Finanzas · KPIs" light color="var(--color-bg-dark)" onClick={() => onSelect(SCREENS.OWNER)} />
       </div>
-      <div style={{ fontSize: '0.7rem', color: 'var(--color-text-light)', letterSpacing: '0.1em' }}>v1.7.0 · Gestionado por SOLARA Homes</div>
+      <div style={{ fontSize: '0.7rem', color: 'var(--color-text-light)', letterSpacing: '0.1em' }}>v1.8.0 · Gestionado por SOLARA Homes</div>
     </div>
   )
 }
