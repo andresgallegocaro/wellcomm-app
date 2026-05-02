@@ -9,7 +9,7 @@ const SUGGESTED_QUESTIONS = [
   '¿Cómo funciona el Revenue Management con PricePoint?',
 ]
 
-export default function StaffConcierge({ onBack, onDashboard, onBriefing, onNovedades, onHabitaciones }) {
+export default function StaffConcierge({ onBack, onDashboard, onBriefing, onNovedades, onHabitaciones, onSolicitudes }) {
   const [messages, setMessages] = useState([
     { role: 'assistant', text: '✳ Welcome to WELLcomm\n\n¿En qué puedo ayudarte hoy?' }
   ])
@@ -42,6 +42,15 @@ export default function StaffConcierge({ onBack, onDashboard, onBriefing, onNove
     }
   }
 
+  const navButtons = [
+    { label: '💬 Chat', onClick: null, active: true },
+    { label: '📋 Briefing', onClick: onBriefing },
+    { label: '📝 Novedades', onClick: onNovedades },
+    { label: '🛏️ Habitaciones', onClick: onHabitaciones },
+    { label: '🛎️ Solicitudes', onClick: onSolicitudes },
+    { label: '📊 Dashboard', onClick: onDashboard },
+  ]
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--color-bg)', display: 'flex', flexDirection: 'column' }}>
 
@@ -54,21 +63,16 @@ export default function StaffConcierge({ onBack, onDashboard, onBriefing, onNove
             <div style={{ fontSize: '0.7rem', opacity: 0.6 }}>WELLCOMM SPA & HOTEL</div>
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr', gap: '0.4rem' }}>
-          {[
-            { label: '💬 Chat', active: true, onClick: null },
-            { label: '📋 Briefing', active: false, onClick: onBriefing },
-            { label: '📝 Novedades', active: false, onClick: onNovedades },
-            { label: '🛏️ Habitaciones', active: false, onClick: onHabitaciones },
-            { label: '📊 Dashboard', active: false, onClick: onDashboard },
-          ].map((btn, i) => (
+        <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.25rem' }}>
+          {navButtons.map((btn, i) => (
             <button key={i} onClick={btn.onClick} style={{
               background: btn.active ? 'white' : 'rgba(255,255,255,0.12)',
               color: btn.active ? 'var(--color-text)' : 'white',
               border: 'none', borderRadius: 8,
-              padding: '0.5rem 0.25rem',
-              fontSize: '0.62rem', cursor: btn.onClick ? 'pointer' : 'default',
-              fontFamily: 'var(--font-body)', fontWeight: btn.active ? 600 : 400
+              padding: '0.45rem 0.6rem',
+              fontSize: '0.65rem', cursor: btn.onClick ? 'pointer' : 'default',
+              fontFamily: 'var(--font-body)', fontWeight: btn.active ? 600 : 400,
+              whiteSpace: 'nowrap', flexShrink: 0
             }}>{btn.label}</button>
           ))}
         </div>
