@@ -26,145 +26,178 @@ async function kvSet(key, value) {
 
 const TAREAS = {
   manana: {
-    label: 'Turno Mañana',
-    hora: '6:00am – 2:30pm',
-    emoji: '🌅',
-    departamentos: {
+    label: 'Turno Mañana', hora: '6:00am – 2:30pm', emoji: '🌅',
+    puestos: {
       front: {
-        label: 'Front Desk',
+        label: 'Front Desk', emoji: '🏨',
+        empleados: ['Yury', 'Fabian', 'Alex', 'Rafael'],
         tareas: [
           'Leer libro de novedades del turno noche',
-          'Revisar llegadas del día en Cloudbeds',
-          'Preparar llaves y welcome amenities para check-ins',
-          'Verificar aromaterapia y Ochibori en recepción',
+          'Revisar llegadas del día en Cloudbeds con perfil de cada huésped',
+          'Preparar llaves y sobre de bienvenida para check-ins',
+          'Activar aromaterapia en recepción (lavanda o cítricos)',
+          'Preparar Ochibori para recibimiento de huéspedes',
           'Confirmar reservas de spa del día con equipo Siana',
-          'Revisar estado de habitaciones con Housekeeping',
-          'Ejecutar check-outs con encuesta de satisfacción',
-          'Supervisar limpieza de habitaciones liberadas',
-          'Ejecutar check-ins con protocolo wellness',
-          'Briefing de traspaso con turno tarde',
-          'Registrar novedades del turno en la app',
+          'Verificar estado de habitaciones con Marcela (Housekeeping)',
+          'Revisar reporte de ocupación vs tarifa recomendada PricePoint',
+          'Ejecutar check-outs con encuesta de satisfacción verbal',
+          'Actualizar estado de habitaciones en la app tras cada salida',
+          'Ejecutar check-ins con protocolo wellness completo',
+          'Registrar preferencias detectadas en perfil del huésped',
+          'Briefing de traspaso con turno tarde — verbal + novedades en app',
         ]
       },
       housekeeping: {
-        label: 'Housekeeping',
+        label: 'Housekeeping', emoji: '🧹',
+        empleados: ['Raisa', 'Beatriz', 'Aracelly', 'Carolina', 'Marcela'],
         tareas: [
-          'Briefing con líder Marcela — asignar habitaciones',
+          'Briefing con Marcela — asignación de habitaciones por prioridad',
           'Priorizar limpieza de habitaciones con check-out',
-          'Revisar y reponer minibares de habitaciones ocupadas',
-          'Inspección de amenities en todas las habitaciones',
-          'Actualizar estado de habitaciones en la app',
-          'Revisar inventario de lencería y amenities',
-          'Reportar cualquier daño o mantenimiento necesario',
-        ]
-      },
-      spa: {
-        label: 'Spa (Siana)',
-        tareas: [
-          'Revisar agenda de citas del día',
-          'Preparar cabinas para primeras sesiones',
-          'Verificar inventario de productos spa',
-          'Confirmar reservas y posibles cancelaciones',
-          'Preparar aromaterapia para check-ins del día',
+          'Inspección de habitaciones liberadas antes de marcarlas limpias',
+          'Reponer minibar completo en habitaciones de check-out',
+          'Revisar y reponer amenities (jabón, shampoo, aromaterapia)',
+          'Cambio completo de lencería en check-outs',
+          'Revisar lencería de habitaciones ocupadas (+2 noches: cambio parcial)',
+          'Reportar daños o mantenimiento necesario en la app',
+          'Actualizar estado de cada habitación en la app al terminar',
+          'Inventario de lencería y amenities al cierre del turno',
         ]
       },
       mantenimiento: {
-        label: 'Mantenimiento',
+        label: 'Mantenimiento', emoji: '🔧',
+        empleados: ['Andrés', 'Jhonatan'],
         tareas: [
-          'Inspección matutina de equipos y sistemas',
-          'Revisar A/C de habitaciones reportadas',
+          'Inspección matutina de equipos: A/C, ascensores, iluminación',
+          'Revisar A/C de habitaciones con check-in del día',
           'Atender solicitudes pendientes del turno noche',
-          'Verificar funcionamiento de ascensores',
-          'Revisar sistemas de iluminación áreas comunes',
+          'Revisión de plomería en habitaciones reportadas',
+          'Inspección de terraza — mobiliario, iluminación, estructura',
+          'Verificar funcionamiento de wifi en todas las plantas',
+          'Registrar trabajos realizados en libro de novedades',
+        ]
+      },
+      spa: {
+        label: 'Spa — Siana', emoji: '💆',
+        empleados: ['Ana', 'Catalina', 'Rosmery', 'Amalia'],
+        tareas: [
+          'Revisar agenda de citas del día completa',
+          'Preparar cabinas para primeras sesiones',
+          'Verificar inventario de aceites, velas y productos',
+          'Confirmar citas y gestionar posibles cancelaciones',
+          'Preparar kit de aromaterapia para check-ins del hotel',
+          'Limpiar y desinfectar cabinas entre sesión y sesión',
+          'Registrar ventas y servicios en Siana',
         ]
       }
     }
   },
   tarde: {
-    label: 'Turno Tarde',
-    hora: '1:30pm – 10:00pm',
-    emoji: '☀️',
-    departamentos: {
+    label: 'Turno Tarde', hora: '1:30pm – 10:00pm', emoji: '☀️',
+    puestos: {
       front: {
-        label: 'Front Desk',
+        label: 'Front Desk', emoji: '🏨',
+        empleados: ['Yury', 'Fabian', 'Alex', 'Rafael'],
         tareas: [
           'Leer novedades del turno mañana',
           'Revisar llegadas pendientes del día',
           'Ejecutar check-ins con protocolo wellness completo',
-          'Coordinar con spa — seguimiento reservas tarde',
+          'Actualizar estado de habitaciones post check-in',
+          'Coordinar con spa — seguimiento reservas de tarde',
           'Supervisar apertura de terraza con equipo F&B',
           'Atender solicitudes de huéspedes en casa',
           'Gestionar solicitudes de late check-out para mañana',
-          'Confirmar llegadas del día siguiente',
+          'Confirmar llegadas del día siguiente — revisar notas especiales',
           'Cierre parcial de caja del día',
-          'Briefing de traspaso con turno noche',
-          'Registrar novedades del turno en la app',
+          'Briefing de traspaso con turno noche — verbal + novedades en app',
         ]
       },
-      terraza: {
-        label: 'The Terrace',
+      terraza_cocina: {
+        label: 'The Terrace — Cocina', emoji: '🍕',
+        empleados: ['Ivan', 'Mateo', 'Carlos'],
         tareas: [
-          'Mise en place completo de terraza',
-          'Verificar inventario de cocina e insumos',
-          'Confirmar reservas y eventos del día',
-          'Briefing de equipo cocina y servicio',
-          'Verificar montaje de mesas',
+          'Recepción y verificación de insumos del día',
+          'Mise en place completo de cocina',
+          'Preparar masas y bases para pizzas del servicio',
+          'Verificar temperaturas de equipos de frío',
+          'Briefing con equipo de servicio — menú del día y especiales',
+          'Servicio completo de cocina',
+          'Limpieza profunda de cocina al cierre',
+          'Inventario de insumos y reporte de faltantes',
+        ]
+      },
+      terraza_servicio: {
+        label: 'The Terrace — Servicio', emoji: '🍽️',
+        empleados: ['Libardo', 'Yeizon', 'Ana Maria', 'Maykol', 'Emily'],
+        tareas: [
+          'Montaje completo de terraza — mesas, mantelería, velas',
+          'Verificar mise en place de barra',
+          'Briefing con cocina — menú y especiales del día',
+          'Revisar reservas de terraza del día',
+          'Servicio completo a mesas y barra',
+          'Gestionar solicitudes de room service',
           'Cierre de caja de terraza',
-          'Limpieza y organización al cierre',
+          'Desmontaje y limpieza de terraza al cierre',
         ]
       },
       spa: {
-        label: 'Spa (Siana)',
+        label: 'Spa — Siana', emoji: '💆',
+        empleados: ['Ana', 'Catalina', 'Rosmery', 'Amalia'],
         tareas: [
-          'Revisar agenda de citas tarde y noche',
+          'Revisar agenda de citas de tarde',
           'Preparar cabinas para sesiones vespertinas',
           'Confirmar citas del día siguiente',
-          'Cierre de caja spa',
-          'Limpieza y desinfección de cabinas al cierre',
+          'Gestionar ventas de productos spa',
+          'Cierre de caja Siana',
+          'Limpieza y desinfección completa de cabinas al cierre',
+          'Registrar novedades del turno',
         ]
       },
       host: {
-        label: 'Host & Concierge',
+        label: 'Host & Concierge', emoji: '🤝',
+        empleados: ['Jose'],
         tareas: [
-          'Revisar novedades y solicitudes de huéspedes',
+          'Revisar novedades y solicitudes activas de huéspedes',
           'Coordinar experiencias especiales programadas',
           'Gestionar comunicaciones con huéspedes in-house',
-          'Actualizar perfil de huéspedes con preferencias',
-          'Coordinar transportes y reservas externas',
+          'Actualizar perfil de huéspedes con preferencias detectadas',
+          'Coordinar transportes y reservas en restaurantes externos',
+          'Gestionar reseñas y feedback en tiempo real',
+          'Apoyar en check-ins especiales o VIPs',
         ]
       }
     }
   },
   noche: {
-    label: 'Turno Noche',
-    hora: '10:00pm – 6:00am',
-    emoji: '🌙',
-    departamentos: {
+    label: 'Turno Noche', hora: '10:00pm – 6:00am', emoji: '🌙',
+    puestos: {
       front: {
-        label: 'Front Desk',
+        label: 'Front Desk', emoji: '🏨',
+        empleados: ['Oscar', 'Fabian', 'Alex'],
         tareas: [
           'Leer novedades del turno tarde',
-          'Verificar huéspedes en casa y habitaciones',
-          'Confirmar llegadas tardías esperadas',
-          'Revisar alarmas y seguridad del edificio',
+          'Verificar lista de huéspedes en casa y estado de habitaciones',
+          'Confirmar llegadas tardías esperadas con hora estimada',
+          'Revisar sistema de alarmas y seguridad del edificio',
           'Atender llegadas tardías con protocolo nocturno',
           'Cierre de caja diario completo',
           'Preparar reporte de ocupación del día',
-          'Preparar pre-check-in para llegadas de mañana',
+          'Pre-check-in de todas las llegadas del día siguiente',
           'Preparar Ochibori y aromaterapia para turno mañana',
-          'Rondas de seguridad cada 2 horas',
-          'Verificar sistemas: wifi, A/C, iluminación',
+          'Ronda de seguridad piso por piso — cada 2 horas',
+          'Verificar sistemas: wifi, A/C áreas comunes, iluminación',
+          'Reporte nocturno completo en libro de novedades',
           'Briefing de traspaso con turno mañana',
-          'Registrar novedades del turno en la app',
         ]
       },
       mantenimiento: {
-        label: 'Mantenimiento',
+        label: 'Mantenimiento', emoji: '🔧',
+        empleados: ['Andrés', 'Jhonatan'],
         tareas: [
-          'Inspección nocturna de sistemas',
-          'Atender emergencias de mantenimiento',
-          'Verificar sistemas de seguridad',
-          'Revisar calderas y sistemas de agua caliente',
+          'Inspección nocturna de sistemas eléctricos',
+          'Verificar sistema de agua caliente y calderas',
+          'Atender emergencias de mantenimiento nocturnas',
+          'Revisar iluminación de emergencia',
+          'Registrar novedades en app',
         ]
       }
     }
@@ -190,10 +223,10 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST') {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body
-      const { turno, departamento, tareaIndex, completada, empleado } = body
+      const { turno, puesto, tareaIndex, completada, empleado } = body
       const key = `checklist_${turno}_${today}`
       const completadas = await kvGet(key) || {}
-      const tareaKey = `${departamento}_${tareaIndex}`
+      const tareaKey = `${puesto}_${tareaIndex}`
       if (completada) {
         completadas[tareaKey] = { completada: true, empleado, hora: new Date().toISOString() }
       } else {
