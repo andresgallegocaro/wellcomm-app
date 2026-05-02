@@ -8,22 +8,23 @@ async function kvGet(key) {
     })
     const data = await res.json()
     if (!data.result) return null
-    return JSON.parse(data.result)
+    let result = data.result
+    if (typeof result === 'string') result = JSON.parse(result)
+    if (typeof result === 'string') result = JSON.parse(result)
+    return result
   } catch (e) {
     return null
   }
 }
 
 async function kvSet(key, value) {
-  const encoded = encodeURIComponent(key)
-  const body = JSON.stringify(JSON.stringify(value))
-  await fetch(`${KV_URL}/set/${encoded}`, {
+  await fetch(`${KV_URL}/set/${encodeURIComponent(key)}`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${KV_TOKEN}`,
       'Content-Type': 'application/json'
     },
-    body
+    body: JSON.stringify(JSON.stringify(value))
   })
 }
 
@@ -43,7 +44,6 @@ export default async function handler(req, res) {
     if (req.method === 'POST') {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body
       const { texto, empleado, departamento, turno, prioridad } = body
-
       const novedades = await kvGet('novedades') || []
       const nueva = {
         id: Date.now().toString(),
