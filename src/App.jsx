@@ -4,6 +4,7 @@ import Dashboard from './Dashboard.jsx'
 import Briefing from './Briefing.jsx'
 import Novedades from './Novedades.jsx'
 import Habitaciones from './Habitaciones.jsx'
+import Solicitudes from './Solicitudes.jsx'
 
 const SCREENS = {
   HOME: 'home',
@@ -13,17 +14,19 @@ const SCREENS = {
   STAFF_BRIEFING: 'staff_briefing',
   STAFF_NOVEDADES: 'staff_novedades',
   STAFF_HABITACIONES: 'staff_habitaciones',
+  STAFF_SOLICITUDES: 'staff_solicitudes',
   OWNER: 'owner',
 }
 
 export default function App() {
   const [screen, setScreen] = useState(SCREENS.HOME)
 
-  if (screen === SCREENS.STAFF) return <StaffConcierge onBack={() => setScreen(SCREENS.HOME)} onDashboard={() => setScreen(SCREENS.STAFF_DASHBOARD)} onBriefing={() => setScreen(SCREENS.STAFF_BRIEFING)} onNovedades={() => setScreen(SCREENS.STAFF_NOVEDADES)} onHabitaciones={() => setScreen(SCREENS.STAFF_HABITACIONES)} />
+  if (screen === SCREENS.STAFF) return <StaffConcierge onBack={() => setScreen(SCREENS.HOME)} onDashboard={() => setScreen(SCREENS.STAFF_DASHBOARD)} onBriefing={() => setScreen(SCREENS.STAFF_BRIEFING)} onNovedades={() => setScreen(SCREENS.STAFF_NOVEDADES)} onHabitaciones={() => setScreen(SCREENS.STAFF_HABITACIONES)} onSolicitudes={() => setScreen(SCREENS.STAFF_SOLICITUDES)} />
   if (screen === SCREENS.STAFF_DASHBOARD) return <Dashboard onBack={() => setScreen(SCREENS.STAFF)} />
   if (screen === SCREENS.STAFF_BRIEFING) return <Briefing onBack={() => setScreen(SCREENS.STAFF)} />
   if (screen === SCREENS.STAFF_NOVEDADES) return <Novedades onBack={() => setScreen(SCREENS.STAFF)} />
   if (screen === SCREENS.STAFF_HABITACIONES) return <Habitaciones onBack={() => setScreen(SCREENS.STAFF)} />
+  if (screen === SCREENS.STAFF_SOLICITUDES) return <Solicitudes onBack={() => setScreen(SCREENS.STAFF)} />
   if (screen === SCREENS.GUEST) return <PlaceholderScreen onBack={() => setScreen(SCREENS.HOME)} title="Concierge · Huésped" emoji="🛎️" />
   if (screen === SCREENS.OWNER) return <PlaceholderScreen onBack={() => setScreen(SCREENS.HOME)} title="Portal Propietario" emoji="📊" />
 
@@ -42,10 +45,10 @@ function HomeScreen({ onSelect }) {
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%', maxWidth: 360 }}>
         <MenuCard emoji="🛎️" title="Soy huésped" subtitle="Concierge, servicios y experiencias" light={false} color="var(--color-primary)" onClick={() => onSelect(SCREENS.GUEST)} />
-        <MenuCard emoji="👥" title="Soy del equipo" subtitle="Concierge IA · Dashboard · Briefing · Novedades · Habitaciones" light color="var(--color-text)" onClick={() => onSelect(SCREENS.STAFF)} />
+        <MenuCard emoji="👥" title="Soy del equipo" subtitle="Concierge · Dashboard · Briefing · Novedades · Habitaciones · Solicitudes" light color="var(--color-text)" onClick={() => onSelect(SCREENS.STAFF)} />
         <MenuCard emoji="📊" title="Soy propietario" subtitle="Revenue · Finanzas · KPIs" light color="var(--color-bg-dark)" onClick={() => onSelect(SCREENS.OWNER)} />
       </div>
-      <div style={{ fontSize: '0.7rem', color: 'var(--color-text-light)', letterSpacing: '0.1em' }}>v1.5.0 · Gestionado por SOLARA Homes</div>
+      <div style={{ fontSize: '0.7rem', color: 'var(--color-text-light)', letterSpacing: '0.1em' }}>v1.6.0 · Gestionado por SOLARA Homes</div>
     </div>
   )
 }
