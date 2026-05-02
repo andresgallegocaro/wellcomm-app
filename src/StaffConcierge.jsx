@@ -9,7 +9,7 @@ const SUGGESTED_QUESTIONS = [
   '¿Cómo funciona el Revenue Management con PricePoint?',
 ]
 
-export default function StaffConcierge({ onBack, onDashboard, onBriefing, onNovedades, onHabitaciones, onSolicitudes }) {
+export default function StaffConcierge({ onBack, onDashboard, onBriefing, onNovedades, onHabitaciones, onSolicitudes, onChecklist }) {
   const [messages, setMessages] = useState([
     { role: 'assistant', text: '✳ Welcome to WELLcomm\n\n¿En qué puedo ayudarte hoy?' }
   ])
@@ -46,6 +46,7 @@ export default function StaffConcierge({ onBack, onDashboard, onBriefing, onNove
     { label: '💬 Chat', onClick: null, active: true },
     { label: '📋 Briefing', onClick: onBriefing },
     { label: '📝 Novedades', onClick: onNovedades },
+    { label: '✅ Checklist', onClick: onChecklist },
     { label: '🛏️ Habitaciones', onClick: onHabitaciones },
     { label: '🛎️ Solicitudes', onClick: onSolicitudes },
     { label: '📊 Dashboard', onClick: onDashboard },
@@ -53,8 +54,6 @@ export default function StaffConcierge({ onBack, onDashboard, onBriefing, onNove
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--color-bg)', display: 'flex', flexDirection: 'column' }}>
-
-      {/* Header */}
       <div style={{ background: 'var(--color-text)', color: 'white', padding: '1rem 1.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
           <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'white', fontSize: '1.2rem', cursor: 'pointer' }}>←</button>
@@ -69,8 +68,8 @@ export default function StaffConcierge({ onBack, onDashboard, onBriefing, onNove
               background: btn.active ? 'white' : 'rgba(255,255,255,0.12)',
               color: btn.active ? 'var(--color-text)' : 'white',
               border: 'none', borderRadius: 8,
-              padding: '0.45rem 0.6rem',
-              fontSize: '0.65rem', cursor: btn.onClick ? 'pointer' : 'default',
+              padding: '0.45rem 0.6rem', fontSize: '0.65rem',
+              cursor: btn.onClick ? 'pointer' : 'default',
               fontFamily: 'var(--font-body)', fontWeight: btn.active ? 600 : 400,
               whiteSpace: 'nowrap', flexShrink: 0
             }}>{btn.label}</button>
@@ -78,7 +77,6 @@ export default function StaffConcierge({ onBack, onDashboard, onBriefing, onNove
         </div>
       </div>
 
-      {/* Suggested questions */}
       {messages.length === 1 && (
         <div style={{ padding: '1rem 1.5rem 0' }}>
           <div style={{ fontSize: '0.72rem', color: 'var(--color-text-light)', letterSpacing: '0.1em', marginBottom: '0.5rem' }}>PREGUNTAS FRECUENTES</div>
@@ -90,7 +88,6 @@ export default function StaffConcierge({ onBack, onDashboard, onBriefing, onNove
         </div>
       )}
 
-      {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '1rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         {messages.map((msg, i) => (
           <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
@@ -111,7 +108,6 @@ export default function StaffConcierge({ onBack, onDashboard, onBriefing, onNove
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
       <div style={{ padding: '1rem 1.5rem', background: 'white', borderTop: '1px solid var(--color-border)', display: 'flex', gap: '0.75rem' }}>
         <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage()} placeholder="Pregunta sobre procedimientos, tarifas, proveedores..." style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: '24px', padding: '0.75rem 1.25rem', fontSize: '0.88rem', outline: 'none', background: 'var(--color-bg)' }} />
         <button onClick={() => sendMessage()} disabled={loading || !input.trim()} style={{ background: 'var(--color-text)', color: 'white', border: 'none', borderRadius: '50%', width: 44, height: 44, fontSize: '1.1rem', cursor: 'pointer', opacity: loading || !input.trim() ? 0.5 : 1, flexShrink: 0 }}>→</button>
