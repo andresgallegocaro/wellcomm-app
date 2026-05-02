@@ -5,30 +5,29 @@ import Briefing from './Briefing.jsx'
 import Novedades from './Novedades.jsx'
 import Habitaciones from './Habitaciones.jsx'
 import Solicitudes from './Solicitudes.jsx'
+import Checklist from './Checklist.jsx'
 
 const SCREENS = {
-  HOME: 'home',
-  GUEST: 'guest',
-  STAFF: 'staff',
-  STAFF_DASHBOARD: 'staff_dashboard',
-  STAFF_BRIEFING: 'staff_briefing',
-  STAFF_NOVEDADES: 'staff_novedades',
-  STAFF_HABITACIONES: 'staff_habitaciones',
-  STAFF_SOLICITUDES: 'staff_solicitudes',
+  HOME: 'home', GUEST: 'guest', STAFF: 'staff',
+  STAFF_DASHBOARD: 'staff_dashboard', STAFF_BRIEFING: 'staff_briefing',
+  STAFF_NOVEDADES: 'staff_novedades', STAFF_HABITACIONES: 'staff_habitaciones',
+  STAFF_SOLICITUDES: 'staff_solicitudes', STAFF_CHECKLIST: 'staff_checklist',
   OWNER: 'owner',
 }
 
 export default function App() {
   const [screen, setScreen] = useState(SCREENS.HOME)
+  const go = (s) => () => setScreen(s)
 
-  if (screen === SCREENS.STAFF) return <StaffConcierge onBack={() => setScreen(SCREENS.HOME)} onDashboard={() => setScreen(SCREENS.STAFF_DASHBOARD)} onBriefing={() => setScreen(SCREENS.STAFF_BRIEFING)} onNovedades={() => setScreen(SCREENS.STAFF_NOVEDADES)} onHabitaciones={() => setScreen(SCREENS.STAFF_HABITACIONES)} onSolicitudes={() => setScreen(SCREENS.STAFF_SOLICITUDES)} />
-  if (screen === SCREENS.STAFF_DASHBOARD) return <Dashboard onBack={() => setScreen(SCREENS.STAFF)} />
-  if (screen === SCREENS.STAFF_BRIEFING) return <Briefing onBack={() => setScreen(SCREENS.STAFF)} />
-  if (screen === SCREENS.STAFF_NOVEDADES) return <Novedades onBack={() => setScreen(SCREENS.STAFF)} />
-  if (screen === SCREENS.STAFF_HABITACIONES) return <Habitaciones onBack={() => setScreen(SCREENS.STAFF)} />
-  if (screen === SCREENS.STAFF_SOLICITUDES) return <Solicitudes onBack={() => setScreen(SCREENS.STAFF)} />
-  if (screen === SCREENS.GUEST) return <PlaceholderScreen onBack={() => setScreen(SCREENS.HOME)} title="Concierge · Huésped" emoji="🛎️" />
-  if (screen === SCREENS.OWNER) return <PlaceholderScreen onBack={() => setScreen(SCREENS.HOME)} title="Portal Propietario" emoji="📊" />
+  if (screen === SCREENS.STAFF) return <StaffConcierge onBack={go(SCREENS.HOME)} onDashboard={go(SCREENS.STAFF_DASHBOARD)} onBriefing={go(SCREENS.STAFF_BRIEFING)} onNovedades={go(SCREENS.STAFF_NOVEDADES)} onHabitaciones={go(SCREENS.STAFF_HABITACIONES)} onSolicitudes={go(SCREENS.STAFF_SOLICITUDES)} onChecklist={go(SCREENS.STAFF_CHECKLIST)} />
+  if (screen === SCREENS.STAFF_DASHBOARD) return <Dashboard onBack={go(SCREENS.STAFF)} />
+  if (screen === SCREENS.STAFF_BRIEFING) return <Briefing onBack={go(SCREENS.STAFF)} />
+  if (screen === SCREENS.STAFF_NOVEDADES) return <Novedades onBack={go(SCREENS.STAFF)} />
+  if (screen === SCREENS.STAFF_HABITACIONES) return <Habitaciones onBack={go(SCREENS.STAFF)} />
+  if (screen === SCREENS.STAFF_SOLICITUDES) return <Solicitudes onBack={go(SCREENS.STAFF)} />
+  if (screen === SCREENS.STAFF_CHECKLIST) return <Checklist onBack={go(SCREENS.STAFF)} />
+  if (screen === SCREENS.GUEST) return <PlaceholderScreen onBack={go(SCREENS.HOME)} title="Concierge · Huésped" emoji="🛎️" />
+  if (screen === SCREENS.OWNER) return <PlaceholderScreen onBack={go(SCREENS.HOME)} title="Portal Propietario" emoji="📊" />
 
   return <HomeScreen onSelect={setScreen} />
 }
@@ -45,10 +44,10 @@ function HomeScreen({ onSelect }) {
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%', maxWidth: 360 }}>
         <MenuCard emoji="🛎️" title="Soy huésped" subtitle="Concierge, servicios y experiencias" light={false} color="var(--color-primary)" onClick={() => onSelect(SCREENS.GUEST)} />
-        <MenuCard emoji="👥" title="Soy del equipo" subtitle="Concierge · Dashboard · Briefing · Novedades · Habitaciones · Solicitudes" light color="var(--color-text)" onClick={() => onSelect(SCREENS.STAFF)} />
+        <MenuCard emoji="👥" title="Soy del equipo" subtitle="Concierge · Dashboard · Briefing · Novedades · Habitaciones · Solicitudes · Checklist" light color="var(--color-text)" onClick={() => onSelect(SCREENS.STAFF)} />
         <MenuCard emoji="📊" title="Soy propietario" subtitle="Revenue · Finanzas · KPIs" light color="var(--color-bg-dark)" onClick={() => onSelect(SCREENS.OWNER)} />
       </div>
-      <div style={{ fontSize: '0.7rem', color: 'var(--color-text-light)', letterSpacing: '0.1em' }}>v1.6.0 · Gestionado por SOLARA Homes</div>
+      <div style={{ fontSize: '0.7rem', color: 'var(--color-text-light)', letterSpacing: '0.1em' }}>v1.7.0 · Gestionado por SOLARA Homes</div>
     </div>
   )
 }
