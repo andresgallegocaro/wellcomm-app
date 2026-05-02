@@ -9,7 +9,7 @@ const SUGGESTED_QUESTIONS = [
   '¿Cómo funciona el Revenue Management con PricePoint?',
 ]
 
-export default function StaffConcierge({ onBack, onDashboard, onBriefing }) {
+export default function StaffConcierge({ onBack, onDashboard, onBriefing, onNovedades }) {
   const [messages, setMessages] = useState([
     { role: 'assistant', text: '✳ Welcome to WELLcomm\n\n¿En qué puedo ayudarte hoy?' }
   ])
@@ -46,15 +46,31 @@ export default function StaffConcierge({ onBack, onDashboard, onBriefing }) {
     <div style={{ minHeight: '100vh', background: 'var(--color-bg)', display: 'flex', flexDirection: 'column' }}>
 
       {/* Header */}
-      <div style={{ background: 'var(--color-text)', color: 'white', padding: '1rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-        <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'white', fontSize: '1.2rem', cursor: 'pointer' }}>←</button>
-        <div>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', letterSpacing: '0.05em' }}>Concierge IA · Equipo</div>
-          <div style={{ fontSize: '0.7rem', opacity: 0.6, letterSpacing: '0.1em' }}>WELLCOMM · NOTION ACTIVO</div>
+      <div style={{ background: 'var(--color-text)', color: 'white', padding: '1rem 1.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
+          <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'white', fontSize: '1.2rem', cursor: 'pointer' }}>←</button>
+          <div>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', letterSpacing: '0.05em' }}>Panel del Equipo</div>
+            <div style={{ fontSize: '0.7rem', opacity: 0.6 }}>WELLCOMM SPA & HOTEL</div>
+          </div>
         </div>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.5rem' }}>
-          <button onClick={onBriefing} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '20px', color: 'white', fontSize: '0.72rem', padding: '0.4rem 0.75rem', cursor: 'pointer' }}>📋 Briefing</button>
-          <button onClick={onDashboard} style={{ background: 'var(--color-primary)', border: 'none', borderRadius: '20px', color: 'white', fontSize: '0.72rem', padding: '0.4rem 0.75rem', cursor: 'pointer' }}>📊 Dashboard</button>
+        {/* Botones de navegación */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '0.4rem' }}>
+          {[
+            { label: '💬 Concierge', active: true, onClick: null },
+            { label: '📋 Briefing', active: false, onClick: onBriefing },
+            { label: '📝 Novedades', active: false, onClick: onNovedades },
+            { label: '📊 Dashboard', active: false, onClick: onDashboard },
+          ].map((btn, i) => (
+            <button key={i} onClick={btn.onClick} style={{
+              background: btn.active ? 'white' : 'rgba(255,255,255,0.12)',
+              color: btn.active ? 'var(--color-text)' : 'white',
+              border: 'none', borderRadius: 8,
+              padding: '0.5rem 0.25rem',
+              fontSize: '0.68rem', cursor: btn.onClick ? 'pointer' : 'default',
+              fontFamily: 'var(--font-body)', fontWeight: btn.active ? 600 : 400
+            }}>{btn.label}</button>
+          ))}
         </div>
       </div>
 
