@@ -1,14 +1,5 @@
 import React, { useState, useEffect } from 'react'
 
-const EMPLEADOS = {
-  front: ['Yury', 'Fabian', 'Alex', 'Oscar', 'Rafael'],
-  housekeeping: ['Raisa', 'Beatriz', 'Aracelly', 'Carolina', 'Marcela'],
-  spa: ['Ana', 'Catalina', 'Rosmery', 'Amalia'],
-  terraza: ['Ivan', 'Mateo', 'Carlos', 'Libardo', 'Yeizon', 'Ana Maria', 'Maykol', 'Emily'],
-  mantenimiento: ['Andrés', 'Jhonatan'],
-  host: ['Jose'],
-}
-
 const TURNOS = [
   { id: 'manana', label: 'Mañana', hora: '6am–2:30pm', emoji: '🌅' },
   { id: 'tarde', label: 'Tarde', hora: '1:30pm–10pm', emoji: '☀️' },
@@ -24,12 +15,23 @@ function getTurnoActual() {
 
 export default function Checklist({ onBack }) {
   const [turno, setTurno] = useState(getTurnoActual())
+  const [puesto, setPuesto] = useState(null)
+  const [empleado, setEmpleado] = useState(null)
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [empleado, setEmpleado] = useState('')
-  const [deptActivo, setDeptActivo] = useState(null)
 
-  useEffect(() => { cargar() }, [turno])
+  useEffect(() => {
+    cargar()
+    setPuesto(null)
+    setEmpleado(null)
+  }, [turno])
+
+  useEffect(() => {
+    if (data && !puesto) {
+      const puestos = Object.keys(data.tareas?.puestos || {})
+      if (puestos.length > 0) setPuesto(puestos[0])
+    }
+  }, [data])
 
   async function cargar() {
     setLoading(true)
@@ -37,9 +39,6 @@ export default function Checklist({ onBack }) {
       const res = await fetch(`/api/checklist?turno=${turno}`)
       const d = await res.json()
       setData(d)
-      if (d.tareas?.departamentos) {
-        setDeptActivo(Object.keys(d.tareas.departamentos)[0])
-      }
     } catch (e) {
       console.error(e)
     } finally {
@@ -47,29 +46,25 @@ export default function Checklist({ onBack }) {
     }
   }
 
-  async function toggleTarea(departamento, tareaIndex, completada) {
-    if (!empleado) {
-      alert('Selecciona tu nombre primero')
-      return
-    }
+  async function toggleTarea(tareaIndex, completada) {
+    if (!empleado) return
     await fetch('/api/checklist', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ turno, departamento, tareaIndex, completada, empleado })
+      body: JSON.stringify({ turno, puesto, tareaIndex, completada, empleado })
     })
     await cargar()
   }
 
-  const totalTareas = data?.tareas?.departamentos
-    ? Object.values(data.tareas.departamentos).reduce((acc, d) => acc + d.tareas.length, 0)
-    : 0
+  const puestos = data?.tareas?.puestos || {}
+  const puestoActual = puestos[puesto]
+  const tareas = puestoActual?.tareas || []
+  const completadasPuesto = tareas.filter((_, i) => data?.completadas?.[`${puesto}_${i}`]).length
+  const progreso = tareas.length > 0 ? Math.round((completadasPuesto / tareas.length) * 100) : 0
 
-  const completadas = Object.keys(data?.completadas || {}).length
-  const progreso = totalTareas > 0 ? Math.round((completadas / totalTareas) * 100) : 0
-
-  const turnoInfo = TURNOS.find(t => t.id === turno)
-  const departamentos = data?.tareas?.departamentos || {}
-  const deptKeys = Object.keys(departamentos)
+  const totalGlobal = Object.values(puestos).reduce((acc, p) => acc + p.tareas.length, 0)
+  const completadasGlobal = Object.keys(data?.completadas || {}).length
+  const progresoGlobal = totalGlobal > 0 ? Math.round((completadasGlobal / totalGlobal) * 100) : 0
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--color-bg)', display: 'flex', flexDirection: 'column' }}>
@@ -80,108 +75,123 @@ export default function Checklist({ onBack }) {
           <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'white', fontSize: '1.2rem', cursor: 'pointer' }}>←</button>
           <div>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', letterSpacing: '0.05em' }}>Checklist de Turno</div>
-            <div style={{ fontSize: '0.7rem', opacity: 0.6 }}>WELLCOMM · {data?.fecha}</div>
+            <div style={{ fontSize: '0.7rem', opacity: 0.6 }}>WELLCOMM · {data?.fecha} · {progresoGlobal}% completado</div>
           </div>
         </div>
 
-        {/* Selector de turno */}
+        {/* Selector turno */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.4rem', marginBottom: '0.75rem' }}>
           {TURNOS.map(t => (
             <button key={t.id} onClick={() => setTurno(t.id)} style={{
               background: turno === t.id ? 'white' : 'rgba(255,255,255,0.12)',
               color: turno === t.id ? 'var(--color-text)' : 'white',
-              border: 'none', borderRadius: 8,
-              padding: '0.5rem 0.25rem', fontSize: '0.72rem',
-              cursor: 'pointer', fontFamily: 'var(--font-body)'
+              border: 'none', borderRadius: 8, padding: '0.5rem 0.25rem',
+              fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'var(--font-body)',
+              fontWeight: turno === t.id ? 600 : 400, textAlign: 'center'
             }}>{t.emoji} {t.label}<br /><span style={{ fontSize: '0.6rem', opacity: 0.7 }}>{t.hora}</span></button>
           ))}
         </div>
 
-        {/* Barra de progreso */}
+        {/* Barra progreso global */}
         <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', opacity: 0.8, marginBottom: '0.3rem' }}>
-            <span>Progreso del turno</span>
-            <span>{completadas}/{totalTareas} tareas · {progreso}%</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', opacity: 0.7, marginBottom: '0.25rem' }}>
+            <span>Progreso total del turno</span>
+            <span>{completadasGlobal}/{totalGlobal} tareas</span>
           </div>
-          <div style={{ background: 'rgba(255,255,255,0.2)', borderRadius: 4, height: 6 }}>
-            <div style={{ background: progreso === 100 ? '#7EC8A0' : 'white', borderRadius: 4, height: 6, width: `${progreso}%`, transition: 'width 0.5s ease' }} />
+          <div style={{ background: 'rgba(255,255,255,0.2)', borderRadius: 4, height: 5 }}>
+            <div style={{ background: progresoGlobal === 100 ? '#7EC8A0' : 'white', borderRadius: 4, height: 5, width: `${progresoGlobal}%`, transition: 'width 0.5s ease' }} />
           </div>
         </div>
       </div>
 
-      {/* Selector de empleado */}
-      <div style={{ background: 'white', padding: '0.75rem 1.5rem', borderBottom: '1px solid var(--color-border)' }}>
-        <div style={{ fontSize: '0.7rem', color: 'var(--color-text-light)', marginBottom: '0.4rem' }}>¿Quién eres tú?</div>
-        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-          {[...new Set(Object.values(EMPLEADOS).flat())].sort().map(e => (
-            <button key={e} onClick={() => setEmpleado(e)} style={{
-              background: empleado === e ? 'var(--color-text)' : 'var(--color-bg)',
-              color: empleado === e ? 'white' : 'var(--color-text)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 20, padding: '0.25rem 0.65rem',
-              fontSize: '0.75rem', cursor: 'pointer'
-            }}>{e}</button>
-          ))}
-        </div>
-      </div>
-
-      {/* Tabs departamentos */}
-      {deptKeys.length > 0 && (
-        <div style={{ display: 'flex', background: 'white', borderBottom: '1px solid var(--color-border)', overflowX: 'auto' }}>
-          {deptKeys.map(key => {
-            const dept = departamentos[key]
-            const deptCompletadas = dept.tareas.filter((_, i) => data?.completadas?.[`${key}_${i}`]).length
+      {/* Selector de puesto */}
+      <div style={{ background: 'white', borderBottom: '1px solid var(--color-border)', overflowX: 'auto' }}>
+        <div style={{ display: 'flex', minWidth: 'max-content' }}>
+          {Object.entries(puestos).map(([key, p]) => {
+            const comp = p.tareas.filter((_, i) => data?.completadas?.[`${key}_${i}`]).length
+            const prog = Math.round((comp / p.tareas.length) * 100)
             return (
-              <button key={key} onClick={() => setDeptActivo(key)} style={{
+              <button key={key} onClick={() => { setPuesto(key); setEmpleado(null) }} style={{
                 padding: '0.75rem 1rem', fontSize: '0.72rem', border: 'none',
-                background: 'none', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
-                color: deptActivo === key ? 'var(--color-text)' : 'var(--color-text-light)',
-                borderBottom: deptActivo === key ? '2px solid var(--color-text)' : '2px solid transparent',
-                fontWeight: deptActivo === key ? 500 : 400
+                background: 'none', cursor: 'pointer', whiteSpace: 'nowrap',
+                color: puesto === key ? 'var(--color-text)' : 'var(--color-text-light)',
+                borderBottom: puesto === key ? '2px solid var(--color-text)' : '2px solid transparent',
+                fontWeight: puesto === key ? 500 : 400, textAlign: 'center'
               }}>
-                {dept.label} ({deptCompletadas}/{dept.tareas.length})
+                {p.emoji} {p.label}<br />
+                <span style={{ fontSize: '0.62rem', color: prog === 100 ? 'var(--color-primary)' : 'var(--color-text-light)' }}>
+                  {comp}/{p.tareas.length} {prog === 100 ? '✅' : ''}
+                </span>
               </button>
             )
           })}
         </div>
+      </div>
+
+      {/* Selector de empleado */}
+      {puestoActual && (
+        <div style={{ background: '#FAFAFA', padding: '0.75rem 1.5rem', borderBottom: '1px solid var(--color-border)' }}>
+          <div style={{ fontSize: '0.68rem', color: 'var(--color-text-light)', marginBottom: '0.4rem' }}>
+            ¿Quién eres? Selecciona tu nombre para marcar tareas
+          </div>
+          <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+            {puestoActual.empleados.map(e => (
+              <button key={e} onClick={() => setEmpleado(e)} style={{
+                background: empleado === e ? 'var(--color-text)' : 'white',
+                color: empleado === e ? 'white' : 'var(--color-text)',
+                border: `1px solid ${empleado === e ? 'var(--color-text)' : 'var(--color-border)'}`,
+                borderRadius: 20, padding: '0.3rem 0.75rem',
+                fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'var(--font-body)'
+              }}>{e}</button>
+            ))}
+          </div>
+        </div>
       )}
 
-      {/* Lista de tareas */}
+      {/* Lista tareas */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '1rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-        {loading && <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--color-text-light)', fontFamily: 'var(--font-display)' }}>Cargando checklist...</div>}
+        {loading && (
+          <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--color-text-light)', fontFamily: 'var(--font-display)' }}>Cargando checklist...</div>
+        )}
 
-        {!loading && deptActivo && departamentos[deptActivo]?.tareas.map((tarea, i) => {
-          const key = `${deptActivo}_${i}`
+        {!loading && !empleado && puestoActual && (
+          <div style={{ textAlign: 'center', padding: '2rem', background: 'white', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow)' }}>
+            <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>👆</div>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', color: 'var(--color-text-light)' }}>
+              Selecciona tu nombre para comenzar
+            </div>
+          </div>
+        )}
+
+        {!loading && empleado && tareas.map((tarea, i) => {
+          const key = `${puesto}_${i}`
           const completadaInfo = data?.completadas?.[key]
           return (
-            <div key={i} onClick={() => toggleTarea(deptActivo, i, !completadaInfo)} style={{
+            <div key={i} onClick={() => toggleTarea(i, !completadaInfo)} style={{
               background: 'white',
               borderRadius: 10,
               padding: '0.875rem 1rem',
               boxShadow: completadaInfo ? 'none' : 'var(--shadow)',
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: '0.75rem',
-              cursor: 'pointer',
-              opacity: completadaInfo ? 0.6 : 1,
-              borderLeft: completadaInfo ? '3px solid var(--color-primary)' : '3px solid var(--color-border)',
-              transition: 'all 0.2s'
+              display: 'flex', alignItems: 'flex-start', gap: '0.75rem',
+              cursor: 'pointer', opacity: completadaInfo ? 0.65 : 1,
+              borderLeft: `3px solid ${completadaInfo ? 'var(--color-primary)' : 'var(--color-border)'}`,
+              transition: 'all 0.15s'
             }}>
               <div style={{
-                width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+                width: 22, height: 22, borderRadius: '50%', flexShrink: 0, marginTop: '0.1rem',
                 background: completadaInfo ? 'var(--color-primary)' : 'transparent',
                 border: `2px solid ${completadaInfo ? 'var(--color-primary)' : 'var(--color-border)'}`,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: '0.75rem', color: 'white', marginTop: '0.1rem'
+                fontSize: '0.75rem', color: 'white'
               }}>
                 {completadaInfo ? '✓' : ''}
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '0.85rem', color: 'var(--color-text)', textDecoration: completadaInfo ? 'line-through' : 'none' }}>
+                <div style={{ fontSize: '0.85rem', color: 'var(--color-text)', textDecoration: completadaInfo ? 'line-through' : 'none', lineHeight: 1.5 }}>
                   {tarea}
                 </div>
                 {completadaInfo && (
-                  <div style={{ fontSize: '0.68rem', color: 'var(--color-primary)', marginTop: '0.2rem' }}>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--color-primary)', marginTop: '0.25rem' }}>
                     ✅ {completadaInfo.empleado} · {new Date(completadaInfo.hora).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
                   </div>
                 )}
@@ -190,11 +200,11 @@ export default function Checklist({ onBack }) {
           )
         })}
 
-        {!loading && progreso === 100 && (
+        {!loading && empleado && progreso === 100 && (
           <div style={{ textAlign: 'center', padding: '1.5rem', background: '#E8F5EE', borderRadius: 'var(--radius)', marginTop: '0.5rem' }}>
             <div style={{ fontSize: '2rem' }}>🎉</div>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', color: '#2d7a4f', marginTop: '0.5rem' }}>
-              ¡Turno completado al 100%!
+              ¡{puestoActual?.label} al 100%!
             </div>
           </div>
         )}
