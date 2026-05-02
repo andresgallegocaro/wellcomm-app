@@ -9,7 +9,7 @@ const SUGGESTED_QUESTIONS = [
   '¿Cómo funciona el Revenue Management con PricePoint?',
 ]
 
-export default function StaffConcierge({ onBack, onDashboard, onBriefing, onNovedades }) {
+export default function StaffConcierge({ onBack, onDashboard, onBriefing, onNovedades, onHabitaciones }) {
   const [messages, setMessages] = useState([
     { role: 'assistant', text: '✳ Welcome to WELLcomm\n\n¿En qué puedo ayudarte hoy?' }
   ])
@@ -54,12 +54,12 @@ export default function StaffConcierge({ onBack, onDashboard, onBriefing, onNove
             <div style={{ fontSize: '0.7rem', opacity: 0.6 }}>WELLCOMM SPA & HOTEL</div>
           </div>
         </div>
-        {/* Botones de navegación */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '0.4rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr', gap: '0.4rem' }}>
           {[
-            { label: '💬 Concierge', active: true, onClick: null },
+            { label: '💬 Chat', active: true, onClick: null },
             { label: '📋 Briefing', active: false, onClick: onBriefing },
             { label: '📝 Novedades', active: false, onClick: onNovedades },
+            { label: '🛏️ Habitaciones', active: false, onClick: onHabitaciones },
             { label: '📊 Dashboard', active: false, onClick: onDashboard },
           ].map((btn, i) => (
             <button key={i} onClick={btn.onClick} style={{
@@ -67,7 +67,7 @@ export default function StaffConcierge({ onBack, onDashboard, onBriefing, onNove
               color: btn.active ? 'var(--color-text)' : 'white',
               border: 'none', borderRadius: 8,
               padding: '0.5rem 0.25rem',
-              fontSize: '0.68rem', cursor: btn.onClick ? 'pointer' : 'default',
+              fontSize: '0.62rem', cursor: btn.onClick ? 'pointer' : 'default',
               fontFamily: 'var(--font-body)', fontWeight: btn.active ? 600 : 400
             }}>{btn.label}</button>
           ))}
