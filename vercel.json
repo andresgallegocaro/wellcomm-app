@@ -1,11 +1,17 @@
 {
-  "functions": {
-    "api/concierge.js": {
-      "maxDuration": 30
-    },
-    "api/test.js": {
-      "maxDuration": 10
+  "crons": [
+    {
+      "path": "/api/cron-refresh",
+      "schedule": "0 */6 * * *"
     }
+  ],
+  "functions": {
+    "api/concierge.js": { "maxDuration": 30 },
+    "api/briefing.js": { "maxDuration": 30 },
+    "api/dashboard.js": { "maxDuration": 30 },
+    "api/propietario.js": { "maxDuration": 30 },
+    "api/rates.js": { "maxDuration": 30 },
+    "api/cron-refresh.js": { "maxDuration": 30 }
   },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
