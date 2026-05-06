@@ -1,6 +1,5 @@
 export default async function handler(req, res) {
   try {
-    // Verificar que es una llamada autorizada de Vercel Cron
     const authHeader = req.headers['authorization']
     if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
       return res.status(401).json({ error: 'Unauthorized' })
@@ -27,7 +26,6 @@ export default async function handler(req, res) {
     })
 
     const tokenData = await tokenRes.json()
-
     if (!tokenData.access_token) {
       return res.status(500).json({ error: 'No se pudo renovar el token', detail: tokenData })
     }
@@ -35,43 +33,47 @@ export default async function handler(req, res) {
     const newAccessToken = tokenData.access_token
     const newRefreshToken = tokenData.refresh_token
 
-    // 2. Actualizar CLOUDBEDS_ACCESS_TOKEN en Vercel
-    await fetch(`https://api.vercel.com/v9/projects/${PROJECT_ID}/env`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${VERCEL_TOKEN}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        key: 'CLOUDBEDS_ACCESS_TOKEN',
-        value: newAccessToken,
-        type: 'encrypted',
-        target: ['production', 'preview']
-      })
+    // 2. Obtener IDs de las variables existentes en Vercel
+    const listRes = await fetch(`https://api.vercel.com/v9/projects/${PROJECT_ID}/env`, {
+      headers: { 'Authorization': `Bearer ${VERCEL_TOKEN}` }
     })
+    const listData = await listRes.json()
+    const envVars = listData.envs || []
 
-    // 3. Actualizar CLOUDBEDS_REFRESH_TOKEN en Vercel
-    if (newRefreshToken) {
-      await fetch(`https://api.vercel.com/v9/projects/${PROJECT_ID}/env`, {
-        method: 'POST',
+    const accessTokenVar = envVars.find(e => e.key === 'CLOUDBEDS_ACCESS_TOKEN')
+    const refreshTokenVar = envVars.find(e => e.key === 'CLOUDBEDS_REFRESH_TOKEN')
+
+    // 3. Actualizar CLOUDBEDS_ACCESS_TOKEN
+    if (accessTokenVar) {
+      await fetch(`https://api.vercel.com/v9/projects/${PROJECT_ID}/env/${accessTokenVar.id}`, {
+        method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${VERCEL_TOKEN}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          key: 'CLOUDBEDS_REFRESH_TOKEN',
-          value: newRefreshToken,
-          type: 'encrypted',
-          target: ['production', 'preview']
-        })
+        body: JSON.stringify({ value: newAccessToken })
+      })
+    }
+
+    // 4. Actualizar CLOUDBEDS_REFRESH_TOKEN
+    if (newRefreshToken && refreshTokenVar) {
+      await fetch(`https://api.vercel.com/v9/projects/${PROJECT_ID}/env/${refreshTokenVar.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${VERCEL_TOKEN}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ value: newRefreshToken })
       })
     }
 
     return res.status(200).json({
       success: true,
-      message: 'Token renovado y guardado en Vercel automáticamente',
+      message: 'Token renovado y actualizado en Vercel',
       timestamp: new Date().toISOString(),
-      expires_in: tokenData.expires_in
+      expires_in: tokenData.expires_in,
+      access_token_updated: !!accessTokenVar,
+      refresh_token_updated: !!(newRefreshToken && refreshTokenVar)
     })
 
   } catch (error) {
