@@ -1,0 +1,494 @@
+import React, { useState, useEffect, useRef } from 'react'
+
+function fmt(n) {
+  if (!n) return '$0'
+  return `$${Math.round(n / 1000)}K`
+}
+
+function fmtCOP(n) {
+  return `COP ${Number(n || 0).toLocaleString('es-CO')}`
+}
+
+const TABS = [
+  { id: 'dashboard', label: '📊 Dashboard', },
+  { id: 'tarifas', label: '💰 Tarifas' },
+  { id: 'competencia', label: '🏆 Competencia' },
+  { id: 'eventos', label: '📅 Eventos' },
+  { id: 'copilot', label: '🤖 Copilot' },
+]
+
+const COMPETENCIA_LISTA = [
+  'Botánica Casa Hotel Manila',
+  'Celestino Boutique Hotel & Spa',
+  'Golden Valley Hotel',
+  'Landmark Hotel',
+  'Moabi Hotel',
+  'Nomada Hotel Origen',
+  'Sloh Hotel & Bar Manila',
+  'The Host Medellin Adults Only',
+  'The Somos Bold',
+]
+
+export default function RevenueManager({ onBack }) {
+  const [tab, setTab] = useState('dashboard')
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [habSeleccionada, setHabSeleccionada] = useState('estandar')
+  const [preciosComp, setPreciosComp] = useState({})
+  const [savingComp, setSavingComp] = useState(false)
+  const [savedComp, setSavedComp] = useState(false)
+  const [copilotMsgs, setCopilotMsgs] = useState([{
+    role: 'assistant',
+    text: '📊 Hola, soy tu Revenue Manager IA.\n\nTengo acceso en tiempo real a tu ocupación, tarifas, competencia y eventos de Medellín. Puedo ayudarte a maximizar el RevPAR de WELLcomm.\n\n¿Qué analizamos hoy?'
+  }])
+  const [copilotInput, setCopilotInput] = useState('')
+  const [copilotLoading, setCopilotLoading] = useState(false)
+  const bottomRef = useRef(null)
+
+  useEffect(() => { cargar() }, [])
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [copilotMsgs])
+
+  async function cargar() {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/revenue?accion=dashboard')
+      const d = await res.json()
+      setData(d)
+      // Inicializar precios competencia
+      const compInit = {}
+      COMPETENCIA_LISTA.forEach(hotel => {
+        compInit[hotel] = { precio: d.competencia?.[hotel]?.precio || 0, actualizado: d.competencia?.[hotel]?.actualizado || null }
+      })
+      setPreciosComp(compInit)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function guardarCompetencia() {
+    setSavingComp(true)
+    try {
+      await fetch('/api/revenue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accion: 'actualizar_competencia', precios: preciosComp })
+      })
+      setSavedComp(true)
+      setTimeout(() => setSavedComp(false), 2000)
+      await cargar()
+    } finally {
+      setSavingComp(false)
+    }
+  }
+
+  async function enviarCopilot() {
+    if (!copilotInput.trim() || copilotLoading) return
+    const pregunta = copilotInput.trim()
+    setCopilotMsgs(prev => [...prev, { role: 'user', text: pregunta }])
+    setCopilotInput('')
+    setCopilotLoading(true)
+    try {
+      const res = await fetch('/api/revenue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accion: 'copilot', pregunta })
+      })
+      const d = await res.json()
+      setCopilotMsgs(prev => [...prev, { role: 'assistant', text: d.respuesta }])
+    } catch {
+      setCopilotMsgs(prev => [...prev, { role: 'assistant', text: 'Error de conexión.' }])
+    } finally {
+      setCopilotLoading(false)
+    }
+  }
+
+  if (loading) return (
+    <div style={{ minHeight: '100vh', background: 'var(--color-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '1rem' }}>
+      <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', color: 'var(--color-text-light)' }}>Cargando Revenue Manager...</div>
+    </div>
+  )
+
+  const recHoy = data?.recomendaciones?.[habSeleccionada]?.[0]
+  const hab = data?.habitaciones?.[habSeleccionada]
+
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--color-bg)', display: 'flex', flexDirection: 'column' }}>
+
+      {/* Header */}
+      <div style={{ background: 'var(--color-text)', color: 'white', padding: '1rem 1.5rem 0' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.75rem' }}>
+          <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'white', fontSize: '1.2rem', cursor: 'pointer' }}>←</button>
+          <div>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', letterSpacing: '0.05em' }}>Revenue Manager</div>
+            <div style={{ fontSize: '0.7rem', opacity: 0.6 }}>WELLCOMM · Occ. {data?.ocupacionActual}% · {data?.enCasa}/25 hab.</div>
+          </div>
+          <button onClick={cargar} style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '20px', color: 'white', fontSize: '0.72rem', padding: '0.4rem 0.75rem', cursor: 'pointer' }}>↻</button>
+        </div>
+
+        {/* Tabs */}
+        <div style={{ display: 'flex', gap: '0.25rem', overflowX: 'auto', paddingBottom: '0' }}>
+          {TABS.map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)} style={{
+              background: tab === t.id ? 'white' : 'rgba(255,255,255,0.1)',
+              color: tab === t.id ? 'var(--color-text)' : 'white',
+              border: 'none', borderRadius: '8px 8px 0 0',
+              padding: '0.5rem 0.75rem', fontSize: '0.68rem',
+              cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
+              fontWeight: tab === t.id ? 600 : 400
+            }}>{t.label}</button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+
+        {/* DASHBOARD */}
+        {tab === 'dashboard' && (
+          <>
+            {/* Alertas */}
+            {data?.alertas?.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {data.alertas.map((alerta, i) => (
+                  <div key={i} style={{ background: `${alerta.color}15`, border: `1px solid ${alerta.color}`, borderRadius: 10, padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: alerta.color, flexShrink: 0 }} />
+                    <div style={{ fontSize: '0.82rem', color: 'var(--color-text)', fontWeight: 500 }}>{alerta.mensaje}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* KPIs */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+              {[
+                { label: 'Ocupación', val: `${data?.ocupacionActual}%`, sub: `${data?.enCasa}/25 hab.`, color: data?.ocupacionActual > 70 ? '#27ae60' : data?.ocupacionActual > 40 ? '#e67e22' : '#e74c3c' },
+                { label: 'Reservas futuras', val: data?.reservasFuturas, sub: 'Confirmadas', color: 'var(--color-primary)' },
+              ].map((k, i) => (
+                <div key={i} style={{ background: 'white', borderRadius: 12, padding: '1rem', boxShadow: 'var(--shadow)', borderTop: `3px solid ${k.color}` }}>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--color-text-light)', marginBottom: '0.25rem' }}>{k.label}</div>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 600, fontFamily: 'var(--font-display)', color: k.color }}>{k.val}</div>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--color-text-light)' }}>{k.sub}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Resumen recomendaciones hoy */}
+            <div style={{ background: 'white', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--shadow)' }}>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', marginBottom: '0.75rem' }}>
+                📊 Recomendaciones de hoy
+              </div>
+              {Object.entries(data?.recomendaciones || {}).map(([tipo, fechas]) => {
+                const hoy = fechas[0]
+                return (
+                  <div key={tipo} onClick={() => { setHabSeleccionada(tipo); setTab('tarifas') }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.6rem 0', borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }}>
+                    <div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 500 }}>{hoy.nombre}</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--color-text-light)' }}>BAR actual: {fmt(hoy.barActual)}</div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '0.88rem', fontWeight: 600, color: hoy.accionColor }}>{fmt(hoy.barRecomendado)}</div>
+                      <div style={{ fontSize: '0.65rem', color: hoy.accionColor }}>{hoy.accionLabel}</div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Próximos eventos */}
+            {data?.eventosProximos?.length > 0 && (
+              <div style={{ background: 'white', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--shadow)' }}>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', marginBottom: '0.75rem' }}>📅 Próximos eventos</div>
+                {data.eventosProximos.slice(0, 3).map((ev, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0', borderBottom: i < 2 ? '1px solid var(--color-border)' : 'none' }}>
+                    <div>
+                      <div style={{ fontSize: '0.82rem', fontWeight: 500 }}>{ev.nombre}</div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--color-text-light)' }}>{ev.inicio} → {ev.fin}</div>
+                    </div>
+                    <div style={{ background: ev.tipo === 'mega' ? '#e74c3c' : ev.tipo === 'alto' ? '#e67e22' : '#f39c12', color: 'white', borderRadius: 20, padding: '0.2rem 0.6rem', fontSize: '0.68rem', fontWeight: 600 }}>
+                      +{Math.round((ev.factor - 1) * 100)}% demanda
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* TARIFAS */}
+        {tab === 'tarifas' && (
+          <>
+            {/* Selector habitación */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+              {Object.entries(data?.habitaciones || {}).map(([tipo, h]) => {
+                const rec = data?.recomendaciones?.[tipo]?.[0]
+                return (
+                  <button key={tipo} onClick={() => setHabSeleccionada(tipo)} style={{
+                    background: habSeleccionada === tipo ? 'var(--color-text)' : 'white',
+                    color: habSeleccionada === tipo ? 'white' : 'var(--color-text)',
+                    border: `1px solid ${habSeleccionada === tipo ? 'var(--color-text)' : 'var(--color-border)'}`,
+                    borderRadius: 10, padding: '0.75rem', cursor: 'pointer', textAlign: 'left'
+                  }}>
+                    <div style={{ fontSize: '0.78rem', fontWeight: 600 }}>{h.nombre}</div>
+                    <div style={{ fontSize: '0.65rem', opacity: 0.7, marginTop: '0.15rem' }}>{h.cantidad} hab · {h.m2}m²</div>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 700, marginTop: '0.25rem', color: habSeleccionada === tipo ? 'var(--color-primary)' : rec?.accionColor }}>
+                      {fmt(rec?.barRecomendado)}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Detalle habitación seleccionada */}
+            {recHoy && hab && (
+              <>
+                {/* Header habitación */}
+                <div style={{ background: 'var(--color-text)', borderRadius: 12, padding: '1.25rem', color: 'white' }}>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--color-primary)', letterSpacing: '0.1em', marginBottom: '0.25rem' }}>BAR OBJETIVO</div>
+                  <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: 300 }}>{hab.nombre}</div>
+                  <div style={{ fontSize: '0.75rem', color: '#888', marginBottom: '1rem' }}>{hab.descripcion}</div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
+                    {[
+                      { label: 'Mínimo', val: fmt(hab.minimo), color: '#e74c3c' },
+                      { label: 'BAR Recomendado', val: fmt(recHoy.barRecomendado), color: 'var(--color-primary)' },
+                      { label: 'Máximo', val: fmt(hab.maximo), color: '#27ae60' },
+                    ].map((k, i) => (
+                      <div key={i} style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '1.1rem', fontWeight: 600, color: k.color }}>{k.val}</div>
+                        <div style={{ fontSize: '0.62rem', color: '#888', marginTop: '0.15rem' }}>{k.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Factores que influyen */}
+                <div style={{ background: 'white', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--shadow)' }}>
+                  <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.9rem', marginBottom: '0.75rem' }}>🧠 Por qué esta tarifa</div>
+                  {[
+                    { label: 'Ocupación actual', val: recHoy.factores.ocupacion, desc: `${data?.ocupacionActual}%` },
+                    { label: 'Fin de semana', val: recHoy.factores.finDeSemana, desc: recHoy.factores.finDeSemana > 0 ? 'Hoy es finde' : 'Día laboral' },
+                    { label: 'Eventos', val: recHoy.factores.factorEvento, desc: recHoy.factores.eventos.length > 0 ? recHoy.factores.eventos.join(', ') : 'Sin eventos' },
+                    { label: 'Competencia', val: recHoy.factores.competencia, desc: 'vs media mercado' },
+                  ].map((f, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0', borderBottom: i < 3 ? '1px solid var(--color-border)' : 'none' }}>
+                      <div>
+                        <div style={{ fontSize: '0.82rem' }}>{f.label}</div>
+                        <div style={{ fontSize: '0.68rem', color: 'var(--color-text-light)' }}>{f.desc}</div>
+                      </div>
+                      <div style={{ fontSize: '0.88rem', fontWeight: 600, color: f.val > 0 ? '#27ae60' : f.val < 0 ? '#e74c3c' : 'var(--color-text-light)' }}>
+                        {f.val > 0 ? '+' : ''}{f.val}%
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Tarifas por canal */}
+                <div style={{ background: 'white', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--shadow)' }}>
+                  <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.9rem', marginBottom: '0.75rem' }}>💡 Paridad — mismo precio, más valor según canal</div>
+                  {Object.entries(recHoy.tarifasCanal).map(([key, canal], i) => (
+                    <div key={key} style={{ padding: '0.75rem 0', borderBottom: i < Object.keys(recHoy.tarifasCanal).length - 1 ? '1px solid var(--color-border)' : 'none' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '0.82rem', fontWeight: 500 }}>{canal.label}</div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', marginTop: '0.3rem' }}>
+                            {canal.beneficios.map((b, j) => (
+                              <span key={j} style={{ fontSize: '0.62rem', background: 'var(--color-bg)', color: 'var(--color-text-light)', padding: '0.1rem 0.4rem', borderRadius: 10 }}>{b}</span>
+                            ))}
+                          </div>
+                        </div>
+                        <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--color-text)', flexShrink: 0 }}>
+                          {fmtCOP(canal.precio)}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Vista 7 días */}
+                <div style={{ background: 'white', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--shadow)' }}>
+                  <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.9rem', marginBottom: '0.75rem' }}>📅 Próximos 7 días — {hab.nombre}</div>
+                  {(data?.recomendaciones?.[habSeleccionada] || []).map((dia, i) => {
+                    const d = new Date(dia.fecha + 'T12:00:00')
+                    const dias = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
+                    return (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0', borderBottom: i < 6 ? '1px solid var(--color-border)' : 'none' }}>
+                        <div style={{ width: 60 }}>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--color-text-light)' }}>{dias[d.getDay()]}</div>
+                          <div style={{ fontSize: '0.82rem', fontWeight: 500 }}>{d.getDate()}/{d.getMonth() + 1}</div>
+                        </div>
+                        <div style={{ flex: 1, margin: '0 0.75rem' }}>
+                          {dia.factores.eventos.length > 0 && (
+                            <div style={{ fontSize: '0.65rem', color: '#e67e22' }}>📅 {dia.factores.eventos[0]}</div>
+                          )}
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: '0.88rem', fontWeight: 600, color: dia.accionColor }}>{fmt(dia.barRecomendado)}</div>
+                          <div style={{ fontSize: '0.62rem', color: dia.accionColor }}>{dia.diferencia > 0 ? '+' : ''}{dia.diferencia}%</div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </>
+            )}
+          </>
+        )}
+
+        {/* COMPETENCIA */}
+        {tab === 'competencia' && (
+          <>
+            <div style={{ background: 'white', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--shadow)' }}>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', marginBottom: '0.5rem' }}>Precios de la competencia hoy</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--color-text-light)', marginBottom: '1rem' }}>Introduce los precios que ves en Booking.com para cada hotel</div>
+
+              {COMPETENCIA_LISTA.map((hotel, i) => (
+                <div key={i} style={{ marginBottom: '0.75rem' }}>
+                  <div style={{ fontSize: '0.78rem', fontWeight: 500, marginBottom: '0.25rem' }}>{hotel}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--color-border)', borderRadius: 8, background: 'white', overflow: 'hidden' }}>
+                    <span style={{ padding: '0.5rem 0.6rem', fontSize: '0.72rem', color: 'var(--color-text-light)', borderRight: '1px solid var(--color-border)', background: 'var(--color-bg)' }}>COP</span>
+                    <input
+                      type="number"
+                      value={preciosComp[hotel]?.precio || ''}
+                      onChange={e => setPreciosComp(prev => ({ ...prev, [hotel]: { precio: Number(e.target.value), actualizado: new Date().toISOString() } }))}
+                      placeholder="0"
+                      style={{ flex: 1, padding: '0.5rem 0.75rem', border: 'none', outline: 'none', fontSize: '0.88rem', fontFamily: 'var(--font-body)' }}
+                    />
+                  </div>
+                </div>
+              ))}
+
+              <button onClick={guardarCompetencia} disabled={savingComp} style={{ width: '100%', background: savedComp ? 'var(--color-primary)' : 'var(--color-text)', color: 'white', border: 'none', borderRadius: 10, padding: '0.875rem', fontSize: '0.88rem', fontWeight: 600, cursor: 'pointer', marginTop: '0.5rem' }}>
+                {savingComp ? 'Guardando...' : savedComp ? '✅ Guardado' : 'Guardar precios competencia'}
+              </button>
+            </div>
+
+            {/* Comparativa visual */}
+            {Object.values(preciosComp).some(h => h.precio > 0) && (
+              <div style={{ background: 'white', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--shadow)' }}>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', marginBottom: '0.75rem' }}>📊 WELLcomm vs Competencia</div>
+                {[
+                  { nombre: '⭐ WELLcomm (BAR)', precio: 480000, esNosotros: true },
+                  ...COMPETENCIA_LISTA
+                    .filter(h => preciosComp[h]?.precio > 0)
+                    .map(h => ({ nombre: h, precio: preciosComp[h].precio }))
+                    .sort((a, b) => a.precio - b.precio)
+                ].map((hotel, i) => {
+                  const maxP = Math.max(480000, ...COMPETENCIA_LISTA.map(h => preciosComp[h]?.precio || 0))
+                  const pct = Math.round((hotel.precio / maxP) * 100)
+                  return (
+                    <div key={i} style={{ marginBottom: '0.75rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: hotel.esNosotros ? 700 : 400, color: hotel.esNosotros ? 'var(--color-primary)' : 'var(--color-text)' }}>
+                          {hotel.nombre}
+                        </span>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 600 }}>{fmt(hotel.precio)}</span>
+                      </div>
+                      <div style={{ background: 'var(--color-bg)', borderRadius: 4, height: 6 }}>
+                        <div style={{ width: `${pct}%`, background: hotel.esNosotros ? 'var(--color-primary)' : 'var(--color-light)', height: 6, borderRadius: 4 }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* EVENTOS */}
+        {tab === 'eventos' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <div style={{ background: 'white', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--shadow)' }}>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', marginBottom: '0.75rem' }}>📅 Calendario de Demanda — Medellín 2026</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--color-text-light)', marginBottom: '1rem' }}>Eventos que impactan la demanda hotelera</div>
+
+              {[
+                { nombre: 'Semana Santa', fechas: '29 Mar – 5 Abr', factor: 30, tipo: 'alto', accion: 'Activar BAR máximo. Mínimo 2 noches. Cerrar No Reembolsable.' },
+                { nombre: 'Día de la Madre', fechas: '10–11 May', factor: 20, tipo: 'medio', accion: 'Subir 15–20% en finde. Activar paquetes románticos.' },
+                { nombre: 'Festival Tango', fechas: '5–15 Jun', factor: 15, tipo: 'medio', accion: 'Subir 12% durante el evento. Apertura anticipada.' },
+                { nombre: 'Colombiamoda', fechas: '22–24 Jul', factor: 25, tipo: 'alto', accion: 'BAR máximo. Mínimo 2 noches. Corporate disponible.' },
+                { nombre: 'Feria de las Flores', fechas: '1–10 Ago', factor: 35, tipo: 'mega', accion: '🚨 BAR máximo TODOS los tipos. Mínimo 3 noches. Cerrar descuentos.' },
+                { nombre: 'Festival Jazz', fechas: '25–30 Sep', factor: 20, tipo: 'alto', accion: 'BAR máximo finde. Paquetes culturales.' },
+                { nombre: 'Navidad Medellín', fechas: '1–31 Dic', factor: 40, tipo: 'mega', accion: '🚨 Temporada alta. Estrategia de yield completa.' },
+                { nombre: 'Año Nuevo', fechas: '30 Dic – 2 Ene', factor: 50, tipo: 'mega', accion: '🚨 Precio máximo absoluto. Mínimo 3 noches. Sin descuentos.' },
+              ].map((ev, i) => {
+                const colorTipo = ev.tipo === 'mega' ? '#e74c3c' : ev.tipo === 'alto' ? '#e67e22' : '#f39c12'
+                return (
+                  <div key={i} style={{ padding: '0.875rem 0', borderBottom: i < 7 ? '1px solid var(--color-border)' : 'none' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.4rem' }}>
+                      <div>
+                        <div style={{ fontSize: '0.88rem', fontWeight: 600 }}>{ev.nombre}</div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--color-text-light)' }}>{ev.fechas}</div>
+                      </div>
+                      <div style={{ background: colorTipo, color: 'white', borderRadius: 20, padding: '0.2rem 0.6rem', fontSize: '0.7rem', fontWeight: 700, flexShrink: 0 }}>
+                        +{ev.factor}% demanda
+                      </div>
+                    </div>
+                    <div style={{ background: `${colorTipo}12`, borderRadius: 8, padding: '0.5rem 0.75rem', fontSize: '0.72rem', color: colorTipo, borderLeft: `3px solid ${colorTipo}` }}>
+                      💡 {ev.accion}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* COPILOT IA */}
+        {tab === 'copilot' && (
+          <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 180px)' }}>
+            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingBottom: '1rem' }}>
+
+              {/* Preguntas sugeridas */}
+              {copilotMsgs.length === 1 && (
+                <div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--color-text-light)', letterSpacing: '0.1em', marginBottom: '0.5rem' }}>PREGUNTAS FRECUENTES</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    {[
+                      '¿Cuál debería ser mi tarifa este fin de semana?',
+                      '¿Estoy dejando dinero sobre la mesa?',
+                      '¿Cuándo activar el BAR máximo?',
+                      '¿Cómo mejorar el RevPAR este mes?',
+                      'Analiza mi posición vs la competencia',
+                      '¿Qué estrategia para la Feria de las Flores?',
+                    ].map((q, i) => (
+                      <button key={i} onClick={() => setCopilotInput(q)} style={{ background: 'white', border: '1px solid var(--color-border)', borderRadius: '20px', padding: '0.4rem 0.75rem', fontSize: '0.75rem', color: 'var(--color-text)', cursor: 'pointer' }}>{q}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {copilotMsgs.map((msg, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                  {msg.role === 'assistant' && (
+                    <div style={{ width: 28, height: 28, background: 'var(--color-text)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', color: 'var(--color-primary)', marginRight: '0.5rem', flexShrink: 0, marginTop: 2 }}>📊</div>
+                  )}
+                  <div style={{ maxWidth: '82%', background: msg.role === 'user' ? 'var(--color-text)' : 'white', color: msg.role === 'user' ? 'white' : 'var(--color-text)', borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px', padding: '0.75rem 1rem', fontSize: '0.85rem', lineHeight: 1.6, boxShadow: 'var(--shadow)', whiteSpace: 'pre-wrap' }}>
+                    {msg.text}
+                  </div>
+                </div>
+              ))}
+
+              {copilotLoading && (
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <div style={{ width: 28, height: 28, background: 'var(--color-text)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-primary)' }}>📊</div>
+                  <div style={{ background: 'white', borderRadius: '16px 16px 16px 4px', padding: '0.75rem 1rem', boxShadow: 'var(--shadow)', display: 'flex', gap: '4px', alignItems: 'center' }}>
+                    {[0,1,2].map(i => <div key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--color-primary)', animation: `bounce 1s ${i * 0.2}s infinite` }} />)}
+                  </div>
+                </div>
+              )}
+              <div ref={bottomRef} />
+            </div>
+
+            <div style={{ background: 'white', borderTop: '1px solid var(--color-border)', padding: '0.75rem', display: 'flex', gap: '0.5rem' }}>
+              <input value={copilotInput} onChange={e => setCopilotInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && enviarCopilot()} placeholder="Pregunta al Revenue Manager IA..." style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: '24px', padding: '0.75rem 1.25rem', fontSize: '0.85rem', outline: 'none', background: 'var(--color-bg)' }} />
+              <button onClick={enviarCopilot} disabled={copilotLoading || !copilotInput.trim()} style={{ background: copilotInput.trim() ? 'var(--color-text)' : 'var(--color-light)', color: 'white', border: 'none', borderRadius: '50%', width: 44, height: 44, cursor: 'pointer', fontSize: '1rem', flexShrink: 0 }}>→</button>
+            </div>
+          </div>
+        )}
+
+      </div>
+      <style>{`@keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }`}</style>
+    </div>
+  )
+}
