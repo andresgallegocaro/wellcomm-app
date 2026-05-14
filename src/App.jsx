@@ -9,13 +9,14 @@ import Checklist from './Checklist.jsx'
 import GuestApp from './GuestApp.jsx'
 import OwnerPortal from './OwnerPortal.jsx'
 import RateIntelligence from './RateIntelligence.jsx'
+import RevenueManager from './RevenueManager.jsx'
 
 const SCREENS = {
   HOME: 'home', GUEST: 'guest', STAFF: 'staff',
   STAFF_DASHBOARD: 'staff_dashboard', STAFF_BRIEFING: 'staff_briefing',
   STAFF_NOVEDADES: 'staff_novedades', STAFF_HABITACIONES: 'staff_habitaciones',
   STAFF_SOLICITUDES: 'staff_solicitudes', STAFF_CHECKLIST: 'staff_checklist',
-  STAFF_RATES: 'staff_rates',
+  STAFF_RATES: 'staff_rates', STAFF_REVENUE: 'staff_revenue',
   OWNER: 'owner',
 }
 
@@ -25,7 +26,7 @@ export default function App() {
 
   if (screen === SCREENS.GUEST) return <GuestApp onBack={go(SCREENS.HOME)} />
   if (screen === SCREENS.OWNER) return <OwnerPortal onBack={go(SCREENS.HOME)} />
-  if (screen === SCREENS.STAFF) return <StaffConcierge onBack={go(SCREENS.HOME)} onDashboard={go(SCREENS.STAFF_DASHBOARD)} onBriefing={go(SCREENS.STAFF_BRIEFING)} onNovedades={go(SCREENS.STAFF_NOVEDADES)} onHabitaciones={go(SCREENS.STAFF_HABITACIONES)} onSolicitudes={go(SCREENS.STAFF_SOLICITUDES)} onChecklist={go(SCREENS.STAFF_CHECKLIST)} onRates={go(SCREENS.STAFF_RATES)} />
+  if (screen === SCREENS.STAFF) return <StaffConcierge onBack={go(SCREENS.HOME)} onDashboard={go(SCREENS.STAFF_DASHBOARD)} onBriefing={go(SCREENS.STAFF_BRIEFING)} onNovedades={go(SCREENS.STAFF_NOVEDADES)} onHabitaciones={go(SCREENS.STAFF_HABITACIONES)} onSolicitudes={go(SCREENS.STAFF_SOLICITUDES)} onChecklist={go(SCREENS.STAFF_CHECKLIST)} onRates={go(SCREENS.STAFF_RATES)} onRevenue={go(SCREENS.STAFF_REVENUE)} />
   if (screen === SCREENS.STAFF_DASHBOARD) return <Dashboard onBack={go(SCREENS.STAFF)} />
   if (screen === SCREENS.STAFF_BRIEFING) return <Briefing onBack={go(SCREENS.STAFF)} />
   if (screen === SCREENS.STAFF_NOVEDADES) return <Novedades onBack={go(SCREENS.STAFF)} />
@@ -33,6 +34,7 @@ export default function App() {
   if (screen === SCREENS.STAFF_SOLICITUDES) return <Solicitudes onBack={go(SCREENS.STAFF)} />
   if (screen === SCREENS.STAFF_CHECKLIST) return <Checklist onBack={go(SCREENS.STAFF)} />
   if (screen === SCREENS.STAFF_RATES) return <RateIntelligence onBack={go(SCREENS.STAFF)} />
+  if (screen === SCREENS.STAFF_REVENUE) return <RevenueManager onBack={go(SCREENS.STAFF)} />
 
   return <HomeScreen onSelect={setScreen} />
 }
@@ -49,10 +51,10 @@ function HomeScreen({ onSelect }) {
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%', maxWidth: 360 }}>
         <MenuCard emoji="🛎️" title="Soy huésped" subtitle="Check-in · Concierge · Servicios · Explorar" light={false} color="var(--color-primary)" onClick={() => onSelect(SCREENS.GUEST)} />
-        <MenuCard emoji="👥" title="Soy del equipo" subtitle="Concierge · Dashboard · Briefing · Novedades · Habitaciones · Solicitudes · Checklist · Rates" light color="var(--color-text)" onClick={() => onSelect(SCREENS.STAFF)} />
+        <MenuCard emoji="👥" title="Soy del equipo" subtitle="Concierge · Dashboard · Revenue · Briefing · Novedades · Habitaciones" light color="var(--color-text)" onClick={() => onSelect(SCREENS.STAFF)} />
         <MenuCard emoji="📊" title="Soy propietario" subtitle="Revenue · Gastos · Liquidación · KPIs en tiempo real" light color="#2c3e50" onClick={() => onSelect(SCREENS.OWNER)} />
       </div>
-      <div style={{ fontSize: '0.7rem', color: 'var(--color-text-light)', letterSpacing: '0.1em' }}>v2.1.0 · Gestionado por SOLARA Homes</div>
+      <div style={{ fontSize: '0.7rem', color: 'var(--color-text-light)', letterSpacing: '0.1em' }}>v2.2.0 · Gestionado por SOLARA Homes</div>
     </div>
   )
 }
@@ -68,16 +70,5 @@ function MenuCard({ emoji, title, subtitle, color, light, onClick }) {
         <div style={{ fontSize: '0.78rem', color: light ? 'rgba(255,255,255,0.7)' : 'var(--color-text-light)', marginTop: '0.2rem' }}>{subtitle}</div>
       </div>
     </button>
-  )
-}
-
-function PlaceholderScreen({ onBack, title, emoji }) {
-  return (
-    <div style={{ minHeight: '100vh', background: 'var(--color-bg)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1.5rem', padding: '2rem' }}>
-      <div style={{ fontSize: '3rem' }}>{emoji}</div>
-      <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', fontWeight: 300 }}>{title}</div>
-      <div style={{ color: 'var(--color-text-light)', fontSize: '0.85rem' }}>Módulo en construcción — próximamente</div>
-      <button onClick={onBack} style={{ marginTop: '1rem', background: 'var(--color-text)', color: 'white', border: 'none', borderRadius: 'var(--radius)', padding: '0.75rem 2rem', fontSize: '0.85rem', cursor: 'pointer' }}>← Volver</button>
-    </div>
   )
 }
