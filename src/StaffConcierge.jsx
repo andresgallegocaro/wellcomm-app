@@ -9,7 +9,7 @@ const SUGGESTED_QUESTIONS = [
   '¿Cómo funciona el Revenue Management con PricePoint?',
 ]
 
-export default function StaffConcierge({ onBack, onDashboard, onBriefing, onNovedades, onHabitaciones, onSolicitudes, onChecklist, onRates }) {
+export default function StaffConcierge({ onBack, onDashboard, onBriefing, onNovedades, onHabitaciones, onSolicitudes, onChecklist, onRates, onRevenue }) {
   const [messages, setMessages] = useState([
     { role: 'assistant', text: '✳ Welcome to WELLcomm\n\n¿En qué puedo ayudarte hoy?' }
   ])
@@ -36,7 +36,7 @@ export default function StaffConcierge({ onBack, onDashboard, onBriefing, onNove
       const data = await res.json()
       setMessages(prev => [...prev, { role: 'assistant', text: data.reply }])
     } catch {
-      setMessages(prev => [...prev, { role: 'assistant', text: 'Error de conexión. Intenta de nuevo.' }])
+      setMessages(prev => [...prev, { role: 'assistant', text: 'Error de conexión.' }])
     } finally {
       setLoading(false)
     }
@@ -49,6 +49,7 @@ export default function StaffConcierge({ onBack, onDashboard, onBriefing, onNove
     { label: '✅ Checklist', onClick: onChecklist },
     { label: '🛏️ Habitaciones', onClick: onHabitaciones },
     { label: '🛎️ Solicitudes', onClick: onSolicitudes },
+    { label: '💰 Revenue', onClick: onRevenue },
     { label: '📈 Rates', onClick: onRates },
     { label: '📊 Dashboard', onClick: onDashboard },
   ]
@@ -100,9 +101,7 @@ export default function StaffConcierge({ onBack, onDashboard, onBriefing, onNove
         {loading && (
           <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
             <div style={{ background: 'white', borderRadius: '16px 16px 16px 4px', padding: '0.75rem 1rem', boxShadow: 'var(--shadow)', display: 'flex', gap: '4px', alignItems: 'center' }}>
-              {[0,1,2].map(i => (
-                <div key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--color-primary)', animation: `bounce 1s ${i * 0.2}s infinite` }} />
-              ))}
+              {[0,1,2].map(i => <div key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--color-primary)', animation: `bounce 1s ${i * 0.2}s infinite` }} />)}
             </div>
           </div>
         )}
