@@ -14,6 +14,11 @@ async function getFreshToken() {
   return data.access_token
 }
 
+function calcNights(startDate, endDate) {
+  const ms = new Date(endDate) - new Date(startDate)
+  return Math.max(1, Math.round(ms / 86400000))
+}
+
 async function getDetalleReserva(reservationID, headers) {
   try {
     const res = await fetch(
@@ -58,21 +63,19 @@ export default async function handler(req, res) {
     const totalHabitaciones = 25
     const ocupacion = Math.round((enCasaCount / totalHabitaciones) * 100)
 
-    // ── FIX ADR ────────────────────────────────────────────────────
-    // Confirmado en test-reserva: el campo correcto es roomTotal
-    // dentro de getReservation (singular), no en getReservations
+    // Traer detalle individual de cada reserva
     const detalles = await Promise.all(
       enCasaLista.map(r => getDetalleReserva(r.reservationID, headers))
     )
 
+    // Calcular ADR con campos confirmados: roomTotal, startDate, endDate
     let totalRevenue = 0
     let totalNoches = 0
 
     detalles.forEach(d => {
       if (!d) return
-      // "roomTotal":"249335.00" — confirmado en respuesta real
       const roomTotal = parseFloat(d.roomTotal || 0)
-      const nights = Math.max(1, parseInt(d.dailyRates?.length || 1))
+      const nights = calcNights(d.startDate, d.endDate)
       if (roomTotal > 0) {
         totalRevenue += roomTotal
         totalNoches += nights
@@ -81,7 +84,6 @@ export default async function handler(req, res) {
 
     const adr = totalNoches > 0 ? Math.round(totalRevenue / totalNoches) : 0
     const revpar = Math.round((ocupacion / 100) * adr)
-    // ── FIN FIX ────────────────────────────────────────────────────
 
     return res.status(200).json({
       fecha: today,
@@ -95,12 +97,12 @@ export default async function handler(req, res) {
       enCasaDetalle: detalles.slice(0, 10).map(d => {
         if (!d) return { nombre: 'Huésped', habitacion: '—', salida: '—', canal: '—', noches: 1, adrNoche: 0 }
         const roomTotal = parseFloat(d.roomTotal || 0)
-        const nights = Math.max(1, parseInt(d.dailyRates?.length || 1))
+        const nights = calcNights(d.startDate, d.endDate)
         return {
           nombre: d.guestName || 'Huésped',
-          habitacion: d.roomName || d.roomID || '—',
+          habitacion: d.roomName || '—',
           salida: d.endDate || '—',
-          canal: d.sourceName || '—',
+          canal: d.sourceName || d.source || '—',
           noches: nights,
           adrNoche: nights > 0 ? Math.round(roomTotal / nights) : 0
         }
