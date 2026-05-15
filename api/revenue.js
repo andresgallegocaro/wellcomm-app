@@ -40,7 +40,11 @@ async function getFreshToken() {
   return data.access_token || process.env.CLOUDBEDS_ACCESS_TOKEN
 }
 
-// Estrategia tarifaria WELLcomm
+function calcNights(startDate, endDate) {
+  const ms = new Date(endDate) - new Date(startDate)
+  return Math.max(1, Math.round(ms / 86400000))
+}
+
 const HABITACIONES = {
   estandar: {
     nombre: 'Estándar', cantidad: 11, m2: 20,
@@ -76,20 +80,19 @@ const CANALES = {
   last_minute: { label: 'Last Minute (D-3)', descuento: -0.10, beneficios: ['Solo si occ. <55%'], condicional: true }
 }
 
-// Competencia con precios base estimados
-const COMPETENCIA = {
-  'Botánica Casa Hotel Manila': { bar_base: 380000, factor: 0.95 },
-  'Celestino Boutique Hotel & Spa': { bar_base: 450000, factor: 1.05 },
-  'Golden Valley Hotel': { bar_base: 280000, factor: 0.85 },
-  'Landmark Hotel': { bar_base: 250000, factor: 0.80 },
-  'Moabi Hotel': { bar_base: 340000, factor: 0.92 },
-  'Nomada Hotel Origen': { bar_base: 390000, factor: 0.97 },
-  'Sloh Hotel & Bar Manila': { bar_base: 420000, factor: 1.00 },
-  'The Host Medellin Adults Only': { bar_base: 370000, factor: 0.94 },
-  'The Somos Bold': { bar_base: 440000, factor: 1.02 },
+// Precios base reales investigados — actualizar semanalmente desde la app
+const COMPETENCIA_BASE = {
+  'Botánica Casa Hotel Manila':      { bar_base: 190000, estrellas: 3, notas: 'Sin spa · desayuno incl.' },
+  'Celestino Boutique Hotel & Spa':  { bar_base: 430000, estrellas: 4, notas: 'Con spa · Lleras · competidor directo' },
+  'Golden Valley Hotel':             { bar_base: 280000, estrellas: 3, notas: 'Sin spa' },
+  'Landmark Hotel':                  { bar_base: 250000, estrellas: 3, notas: 'Budget' },
+  'Moabi Hotel':                     { bar_base: 320000, estrellas: 4, notas: 'Boutique' },
+  'Nomada Hotel Origen':             { bar_base: 370000, estrellas: 4, notas: 'Manila · boutique' },
+  'Sloh Hotel & Bar Manila':         { bar_base: 400000, estrellas: 4, notas: 'Manila · bar incluido' },
+  'The Host Medellin Adults Only':   { bar_base: 350000, estrellas: 4, notas: 'Adults only' },
+  'The Somos Bold':                  { bar_base: 420000, estrellas: 4, notas: 'Poblado · diseño' },
 }
 
-// Eventos Medellín 2026
 const EVENTOS_MEDELLIN = [
   { nombre: 'Feria de las Flores', inicio: '2026-08-01', fin: '2026-08-10', factor: 1.35, tipo: 'mega' },
   { nombre: 'Festival Internacional de Jazz', inicio: '2026-09-25', fin: '2026-09-30', factor: 1.20, tipo: 'alto' },
@@ -113,7 +116,6 @@ function calcularBARRecomendado(tipoHab, ocupacionActual, fecha, preciosCompeten
   const diaSemana = d.getDay()
   const esFinDeSemana = diaSemana === 5 || diaSemana === 6
 
-  // 1. Factor ocupación
   let factorOcupacion = 1.0
   if (ocupacionActual >= 85) factorOcupacion = 1.20
   else if (ocupacionActual >= 75) factorOcupacion = 1.15
@@ -122,34 +124,25 @@ function calcularBARRecomendado(tipoHab, ocupacionActual, fecha, preciosCompeten
   else if (ocupacionActual <= 30) factorOcupacion = 0.92
   else if (ocupacionActual <= 40) factorOcupacion = 0.96
 
-  // 2. Factor fin de semana
   const factorFDS = esFinDeSemana ? 1.12 : 1.0
 
-  // 3. Factor eventos
   const eventos = getEventosFecha(fecha)
   const factorEvento = eventos.length > 0
     ? Math.max(...eventos.map(e => e.factor))
     : 1.0
 
-  // 4. Factor competencia
   let factorComp = 1.0
   if (preciosCompetencia && preciosCompetencia.length > 0) {
     const mediaComp = preciosCompetencia.reduce((a, b) => a + b, 0) / preciosCompetencia.length
     const ratio = hab.bar / mediaComp
-    if (ratio < 0.85) factorComp = 1.05 // Estamos muy baratos, subir
-    else if (ratio > 1.20) factorComp = 0.97 // Estamos muy caros, bajar
+    if (ratio < 0.85) factorComp = 1.05
+    else if (ratio > 1.20) factorComp = 0.97
   }
 
-  // 5. Calcular BAR recomendado
   let barRecomendado = hab.bar * factorOcupacion * factorFDS * factorEvento * factorComp
-
-  // 6. Aplicar límites
   barRecomendado = Math.max(hab.minimo, Math.min(hab.maximo, barRecomendado))
-
-  // 7. Redondear a miles
   barRecomendado = Math.round(barRecomendado / 1000) * 1000
 
-  // 8. Calcular tarifas por canal
   const tarifasCanal = {}
   Object.entries(CANALES).forEach(([key, canal]) => {
     let precio = barRecomendado * (1 + canal.descuento)
@@ -157,7 +150,6 @@ function calcularBARRecomendado(tipoHab, ocupacionActual, fecha, preciosCompeten
     tarifasCanal[key] = { precio, label: canal.label, beneficios: canal.beneficios }
   })
 
-  // 9. Determinar acción recomendada
   const diff = ((barRecomendado - hab.bar) / hab.bar) * 100
   let accion = 'mantener'
   let accionLabel = '✅ Mantener tarifa'
@@ -197,37 +189,91 @@ export default async function handler(req, res) {
       ? (typeof req.body === 'string' ? JSON.parse(req.body) : req.body)
       : {}
 
-    // Obtener datos reales de Cloudbeds
     const token = await getFreshToken()
     const headers = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
     const today = new Date().toISOString().split('T')[0]
 
     let ocupacionActual = 50
     let enCasa = 0
+    let adrReal = 0
+    let revparReal = 0
     let reservasFuturas = []
 
     try {
-      const [enCasaRes, futuraRes] = await Promise.all([
-        fetch(`https://api.cloudbeds.com/api/v1.1/getReservations?status=checked_in&pageSize=25`, { headers }),
-        fetch(`https://api.cloudbeds.com/api/v1.1/getReservations?status=not_checked_in&pageSize=50`, { headers }),
-      ])
+      // En casa con detalle de revenue
+      const enCasaRes = await fetch(
+        `https://api.cloudbeds.com/api/v1.1/getReservations?status=checked_in&pageSize=25`,
+        { headers }
+      )
       const enCasaData = await enCasaRes.json()
-      const futuraData = await futuraRes.json()
-      enCasa = enCasaData?.data?.length || 0
-      ocupacionActual = Math.round((enCasa / TOTAL_HAB) * 100)
-      reservasFuturas = futuraData?.data || []
-    } catch (e) {}
+      const enCasaLista = Array.isArray(enCasaData?.data)
+        ? enCasaData.data
+        : Object.values(enCasaData?.data || {})
 
-    // GET — análisis completo
+      enCasa = enCasaLista.length
+      ocupacionActual = Math.round((enCasa / TOTAL_HAB) * 100)
+
+      // Revenue real — getReservation individual
+      const detalles = await Promise.all(
+        enCasaLista.map(async r => {
+          try {
+            const dr = await fetch(
+              `https://api.cloudbeds.com/api/v1.1/getReservation?reservationID=${r.reservationID}`,
+              { headers }
+            )
+            const dj = await dr.json()
+            return dj?.data || null
+          } catch { return null }
+        })
+      )
+
+      let totalRevenue = 0
+      let totalNoches = 0
+      detalles.forEach(d => {
+        if (!d) return
+        const rev = parseFloat(d.total || 0)
+        const nights = calcNights(d.startDate, d.endDate)
+        if (rev > 0) { totalRevenue += rev; totalNoches += nights }
+      })
+      adrReal = totalNoches > 0 ? Math.round(totalRevenue / totalNoches) : 0
+      revparReal = Math.round((ocupacionActual / 100) * adrReal)
+
+      // Reservas futuras
+      const futuraRes = await fetch(
+        `https://api.cloudbeds.com/api/v1.1/getReservations?status=not_checked_in&pageSize=50`,
+        { headers }
+      )
+      const futuraData = await futuraRes.json()
+      reservasFuturas = Array.isArray(futuraData?.data)
+        ? futuraData.data
+        : Object.values(futuraData?.data || {})
+    } catch (e) {
+      console.error('Cloudbeds error:', e.message)
+    }
+
     if (req.method === 'GET') {
       const accion = req.query.accion || 'dashboard'
 
-      // Precios competencia guardados
-      const preciosComp = await kvGet('competencia_precios') || {}
+      // Precios competencia: KV tiene prioridad, si no existe usar base real
+      const preciosKV = await kvGet('competencia_precios') || {}
+      const ultimaActualizacion = await kvGet('competencia_ultima_actualizacion')
+
+      // Mezclar: usar KV si existe, si no usar base investigada
+      const preciosComp = {}
+      Object.entries(COMPETENCIA_BASE).forEach(([hotel, base]) => {
+        preciosComp[hotel] = {
+          precio: preciosKV[hotel]?.precio || base.bar_base,
+          precio_base: base.bar_base,
+          estrellas: base.estrellas,
+          notas: base.notas,
+          esManual: !!preciosKV[hotel]?.precio,
+          actualizado: preciosKV[hotel]?.actualizado || 'Precio base investigado'
+        }
+      })
+
       const preciosCompArray = Object.values(preciosComp).map(h => h.precio).filter(Boolean)
 
       if (accion === 'dashboard') {
-        // Calcular recomendaciones para hoy y próximos 7 días
         const fechas = Array.from({ length: 7 }, (_, i) => {
           const d = new Date()
           d.setDate(d.getDate() + i)
@@ -242,7 +288,6 @@ export default async function handler(req, res) {
           }))
         })
 
-        // Alertas
         const alertas = []
         Object.keys(HABITACIONES).forEach(tipo => {
           const hoy = recomendaciones[tipo][0]
@@ -250,14 +295,12 @@ export default async function handler(req, res) {
           if (hoy.diferencia < -10) alertas.push({ tipo: 'bajar', hab: hoy.nombre, mensaje: `Baja ${hoy.nombre} a ${(hoy.barRecomendado/1000).toFixed(0)}K (${hoy.diferencia}%)`, color: '#e74c3c' })
         })
 
-        // Eventos próximos 30 días
         const eventosProximos = []
         for (let i = 0; i < 30; i++) {
           const d = new Date()
           d.setDate(d.getDate() + i)
           const fecha = d.toISOString().split('T')[0]
-          const eventos = getEventosFecha(fecha)
-          eventos.forEach(e => {
+          getEventosFecha(fecha).forEach(e => {
             if (!eventosProximos.find(ev => ev.nombre === e.nombre)) {
               eventosProximos.push({ ...e, diasParaEvento: i })
             }
@@ -267,82 +310,75 @@ export default async function handler(req, res) {
         return res.status(200).json({
           ocupacionActual,
           enCasa,
+          adrReal,
+          revparReal,
           reservasFuturas: reservasFuturas.length,
           habitaciones: HABITACIONES,
           recomendaciones,
           alertas,
           eventosProximos,
           competencia: preciosComp,
+          ultimaActualizacion,
           totalHab: TOTAL_HAB,
           fecha: today
         })
       }
-
-      if (accion === 'competencia') {
-        return res.status(200).json({
-          competencia: COMPETENCIA,
-          preciosGuardados: preciosComp,
-          ultimaActualizacion: await kvGet('competencia_ultima_actualizacion')
-        })
-      }
     }
 
-    // POST — guardar precios competencia / consulta IA
     if (req.method === 'POST') {
-
-      // Guardar precios competencia
       if (body.accion === 'actualizar_competencia') {
-        const { precios } = body
-        await kvSet('competencia_precios', precios)
+        await kvSet('competencia_precios', body.precios)
         await kvSet('competencia_ultima_actualizacion', new Date().toISOString())
         return res.status(200).json({ ok: true })
       }
 
-      // Revenue Copilot IA
       if (body.accion === 'copilot') {
         const { pregunta } = body
-
-        const preciosComp = await kvGet('competencia_precios') || {}
+        const preciosKV = await kvGet('competencia_precios') || {}
         const eventosHoy = getEventosFecha(today)
+
+        const preciosComp = {}
+        Object.entries(COMPETENCIA_BASE).forEach(([hotel, base]) => {
+          preciosComp[hotel] = { precio: preciosKV[hotel]?.precio || base.bar_base }
+        })
+        const preciosCompArray = Object.values(preciosComp).map(h => h.precio).filter(Boolean)
 
         const recsHoy = {}
         Object.keys(HABITACIONES).forEach(tipo => {
-          const preciosCompArray = Object.values(preciosComp).map(h => h.precio).filter(Boolean)
           recsHoy[tipo] = calcularBARRecomendado(tipo, ocupacionActual, today, preciosCompArray)
         })
 
-        const contexto = `Eres el Revenue Manager senior de WELLcomm Spa & Hotel, un boutique wellness de 25 habitaciones en Manila, Medellín, Colombia. Gestionado por SOLARA Homes.
+        const mediaComp = preciosCompArray.length > 0
+          ? Math.round(preciosCompArray.reduce((a, b) => a + b, 0) / preciosCompArray.length)
+          : 0
+
+        const contexto = `Eres el Revenue Manager senior de WELLcomm Spa & Hotel, boutique wellness de 25 habitaciones en Manila, Medellín, Colombia. Gestionado por SOLARA Homes.
 
 DATOS EN TIEMPO REAL HOY (${today}):
-- Ocupación actual: ${ocupacionActual}% (${enCasa} de 25 habitaciones)
+- Ocupación: ${ocupacionActual}% (${enCasa}/25 habitaciones)
+- ADR real Cloudbeds: $${adrReal.toLocaleString('es-CO')} COP
+- RevPAR real: $${revparReal.toLocaleString('es-CO')} COP
 - Reservas futuras confirmadas: ${reservasFuturas.length}
-- Eventos activos hoy: ${eventosHoy.map(e => e.nombre).join(', ') || 'Ninguno'}
+- Eventos activos: ${eventosHoy.map(e => e.nombre).join(', ') || 'Ninguno'}
 
-ESTRUCTURA TARIFARIA WELLCOMM:
-- Estándar (11 hab, 20m²): BAR $480K | Mín $420K | Máx $580K
-- Superior (4 hab, 22m²): BAR $530K | Mín $460K | Máx $640K  
-- Suite Ejecutiva (8 hab, 28m²): BAR $580K | Mín $510K | Máx $700K
-- Suite Presidencial (2 hab, 45m²): BAR $650K | Mín $580K | Máx $780K
+ESTRUCTURA TARIFARIA:
+- Estándar (11 hab): BAR $480K | Mín $420K | Máx $580K
+- Superior (4 hab): BAR $530K | Mín $460K | Máx $640K
+- Suite Ejecutiva (8 hab): BAR $580K | Mín $510K | Máx $700K
+- Suite Presidencial (2 hab): BAR $650K | Mín $580K | Máx $780K
 
-REGLAS DE PRICING:
-- Paridad de precio en todos los canales (mismo precio, más valor según canal)
-- OTA Rack: BAR + Add-on $30 USD
-- Genius/VIP + Directo: BAR + Termal + F&B 15% dto
-- Directo además: Late CO gratis
-- No Reembolsable: BAR -15% sin spa
-- Corporate/Grupos: BAR -15% con desayuno, mín 5 hab, depósito 30%
-- Agencia/B2B (TAAP): BAR -12%, mín 2 noches
-- Last Minute D-3: mín -10%, solo si occ <55%
-- Escalonado: Estándar→Superior +$50K | Superior→Ejecutiva +$50K | Ejecutiva→Presidencial +$120K
-- BAR máximo activa cuando occ proyectada >80%
+RECOMENDACIONES HOY:
+${Object.values(recsHoy).map(r => `- ${r.nombre}: $${(r.barRecomendado/1000).toFixed(0)}K (${r.accionLabel})`).join('\n')}
 
-RECOMENDACIONES IA PARA HOY:
-${Object.values(recsHoy).map(r => `- ${r.nombre}: BAR recomendado $${(r.barRecomendado/1000).toFixed(0)}K (${r.accionLabel})`).join('\n')}
+COMPETENCIA (precios actuales):
+${Object.entries(preciosComp).map(([h, d]) => `- ${h}: $${(d.precio/1000).toFixed(0)}K`).join('\n')}
+Media competencia: $${(mediaComp/1000).toFixed(0)}K
+WELLcomm BAR Estándar vs media: ${mediaComp > 0 ? (((480000/mediaComp)-1)*100).toFixed(1) : 'N/D'}%
 
-COMPETENCIA (últimos precios registrados):
-${Object.entries(preciosComp).map(([hotel, data]) => `- ${hotel}: $${(data.precio/1000).toFixed(0)}K`).join('\n') || 'Sin datos de competencia aún'}
+TARGET Y1: ADR $430K | RevPAR $301K | Ocupación 70%
+ADR actual vs target: ${adrReal > 0 ? (((adrReal/430000)-1)*100).toFixed(1) : 'N/D'}%
 
-Razona como el mejor revenue manager del mundo. Usa datos concretos. Da recomendaciones accionables con números exactos. Explica el razonamiento detrás de cada decisión. Responde en español.`
+Razona como el mejor revenue manager del mundo. Usa los datos reales. Da recomendaciones accionables con números exactos. Responde en español.`
 
         const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
@@ -361,7 +397,6 @@ Razona como el mejor revenue manager del mundo. Usa datos concretos. Da recomend
 
         const claudeData = await claudeRes.json()
         const respuesta = claudeData.content?.[0]?.text || 'Error al consultar el Revenue Copilot.'
-
         return res.status(200).json({ respuesta })
       }
     }
