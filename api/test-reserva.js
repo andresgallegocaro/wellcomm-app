@@ -21,35 +21,36 @@ export default async function handler(req, res) {
     const token = await getFreshToken()
     const headers = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
 
-    // PASO 1: traer la lista para obtener un reservationID real
     const listaRes = await fetch(
       'https://api.cloudbeds.com/api/v1.1/getReservations?status=checked_in&pageSize=3',
       { headers }
     )
     const listaData = await listaRes.json()
     const lista = listaData?.data || []
+    const primera = lista[0]
 
-    if (lista.length === 0) {
-      return res.status(200).json({ error: 'No hay reservas en casa', listaData })
-    }
-
-    // PASO 2: tomar la primera reserva y ver TODOS sus campos
-    const primeraReserva = lista[0]
-    const reservationID = primeraReserva.reservationID
-
-    // PASO 3: pedir el detalle individual
     const detalleRes = await fetch(
-      `https://api.cloudbeds.com/api/v1.1/getReservation?reservationID=${reservationID}`,
+      `https://api.cloudbeds.com/api/v1.1/getReservation?reservationID=${primera.reservationID}`,
       { headers }
     )
-    const detalleData = await detalleRes.json()
+    const detalleJson = await detalleRes.json()
+    const d = detalleJson?.data
 
-    // Devolver TODO para ver qué campos existen
+    // Solo los campos de dinero — para ver exactamente qué llega
     return res.status(200).json({
-      reservationID,
-      camposEnLista: primeraReserva,       // qué manda getReservations
-      camposEnDetalle: detalleData?.data,  // qué manda getReservation
-      httpStatusDetalle: detalleRes.status
+      reservationID: primera.reservationID,
+      roomTotal_raw: d.roomTotal,
+      roomTotal_tipo: typeof d.roomTotal,
+      roomTotal_parsed: parseFloat(d.roomTotal || 0),
+      startDate: d.startDate,
+      endDate: d.endDate,
+      grandTotal: d.grandTotal,
+      subTotal: d.subTotal,
+      total: d.total,
+      nights_dailyRates: d.dailyRates?.length,
+      sourceName: d.sourceName,
+      source: d.source,
+      roomName: d.roomName
     })
 
   } catch (error) {
