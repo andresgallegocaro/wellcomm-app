@@ -14,15 +14,14 @@ async function getFreshToken() {
   return data.access_token
 }
 
-// ── FIX: busca el roomTotal en la reserva individual ──────────────
-async function getReservacionDetalle(reservationID, headers) {
+async function getDetalleReserva(reservationID, headers) {
   try {
     const res = await fetch(
       `https://api.cloudbeds.com/api/v1.1/getReservation?reservationID=${reservationID}`,
       { headers }
     )
-    const data = await res.json()
-    return data?.data || null
+    const json = await res.json()
+    return json?.data || null
   } catch (e) {
     return null
   }
@@ -44,7 +43,7 @@ export default async function handler(req, res) {
       { headers }
     )
     const enCasaData = await enCasaRes.json()
-    const enCasa = enCasaData?.data || []
+    const enCasaLista = enCasaData?.data || []
 
     // Llegadas hoy
     const llegadasRes = await fetch(
@@ -55,15 +54,15 @@ export default async function handler(req, res) {
     const llegadasData = llegadasText.startsWith('<') ? { data: [] } : JSON.parse(llegadasText)
     const llegadas = llegadasData?.data || []
 
-    const enCasaCount = enCasa.length
+    const enCasaCount = enCasaLista.length
     const totalHabitaciones = 25
     const ocupacion = Math.round((enCasaCount / totalHabitaciones) * 100)
 
     // ── FIX ADR ────────────────────────────────────────────────────
-    // Antes: leía roomTotal de la lista general → siempre 0
-    // Ahora: pide el detalle de cada reserva individualmente
+    // Confirmado en test-reserva: el campo correcto es roomTotal
+    // dentro de getReservation (singular), no en getReservations
     const detalles = await Promise.all(
-      enCasa.map(r => getReservacionDetalle(r.reservationID, headers))
+      enCasaLista.map(r => getDetalleReserva(r.reservationID, headers))
     )
 
     let totalRevenue = 0
@@ -71,8 +70,9 @@ export default async function handler(req, res) {
 
     detalles.forEach(d => {
       if (!d) return
+      // "roomTotal":"249335.00" — confirmado en respuesta real
       const roomTotal = parseFloat(d.roomTotal || 0)
-      const nights = Math.max(1, parseInt(d.nights || 1))
+      const nights = Math.max(1, parseInt(d.dailyRates?.length || 1))
       if (roomTotal > 0) {
         totalRevenue += roomTotal
         totalNoches += nights
@@ -92,16 +92,19 @@ export default async function handler(req, res) {
       totalHabitaciones,
       adr,
       revpar,
-      enCasaDetalle: detalles.slice(0, 8).map(d => ({
-        nombre: d?.guestName || 'Huésped',
-        habitacion: d?.roomNumber || '—',
-        salida: d?.checkOut || d?.endDate || '—',
-        canal: d?.sourceName || '—',
-        noches: Math.max(1, parseInt(d?.nights || 1)),
-        adrNoche: d?.roomTotal && d?.nights
-          ? Math.round(parseFloat(d.roomTotal) / Math.max(1, parseInt(d.nights)))
-          : 0
-      })),
+      enCasaDetalle: detalles.slice(0, 10).map(d => {
+        if (!d) return { nombre: 'Huésped', habitacion: '—', salida: '—', canal: '—', noches: 1, adrNoche: 0 }
+        const roomTotal = parseFloat(d.roomTotal || 0)
+        const nights = Math.max(1, parseInt(d.dailyRates?.length || 1))
+        return {
+          nombre: d.guestName || 'Huésped',
+          habitacion: d.roomName || d.roomID || '—',
+          salida: d.endDate || '—',
+          canal: d.sourceName || '—',
+          noches: nights,
+          adrNoche: nights > 0 ? Math.round(roomTotal / nights) : 0
+        }
+      }),
       llegadasDetalle: llegadas.slice(0, 8).map(r => ({
         nombre: r.guestName || 'Huésped',
         habitacion: r.roomNumber || '—',
