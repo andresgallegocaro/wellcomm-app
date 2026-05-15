@@ -63,21 +63,21 @@ export default async function handler(req, res) {
     const totalHabitaciones = 25
     const ocupacion = Math.round((enCasaCount / totalHabitaciones) * 100)
 
-    // Traer detalle individual de cada reserva
+    // Detalle individual de cada reserva
     const detalles = await Promise.all(
       enCasaLista.map(r => getDetalleReserva(r.reservationID, headers))
     )
 
-    // Calcular ADR con campos confirmados: roomTotal, startDate, endDate
+    // ── FIX DEFINITIVO: el campo correcto es "total", no "roomTotal" ──
     let totalRevenue = 0
     let totalNoches = 0
 
     detalles.forEach(d => {
       if (!d) return
-      const roomTotal = parseFloat(d.roomTotal || 0)
+      const revenue = parseFloat(d.total || 0)   // ← "total": 249335
       const nights = calcNights(d.startDate, d.endDate)
-      if (roomTotal > 0) {
-        totalRevenue += roomTotal
+      if (revenue > 0) {
+        totalRevenue += revenue
         totalNoches += nights
       }
     })
@@ -96,15 +96,15 @@ export default async function handler(req, res) {
       revpar,
       enCasaDetalle: detalles.slice(0, 10).map(d => {
         if (!d) return { nombre: 'Huésped', habitacion: '—', salida: '—', canal: '—', noches: 1, adrNoche: 0 }
-        const roomTotal = parseFloat(d.roomTotal || 0)
+        const revenue = parseFloat(d.total || 0)
         const nights = calcNights(d.startDate, d.endDate)
         return {
           nombre: d.guestName || 'Huésped',
           habitacion: d.roomName || '—',
           salida: d.endDate || '—',
-          canal: d.sourceName || d.source || '—',
+          canal: d.source || '—',
           noches: nights,
-          adrNoche: nights > 0 ? Math.round(roomTotal / nights) : 0
+          adrNoche: nights > 0 ? Math.round(revenue / nights) : 0
         }
       }),
       llegadasDetalle: llegadas.slice(0, 8).map(r => ({
