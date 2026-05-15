@@ -14,6 +14,20 @@ async function getFreshToken() {
   return data.access_token
 }
 
+// ── FIX: busca el roomTotal en la reserva individual ──────────────
+async function getReservacionDetalle(reservationID, headers) {
+  try {
+    const res = await fetch(
+      `https://api.cloudbeds.com/api/v1.1/getReservation?reservationID=${reservationID}`,
+      { headers }
+    )
+    const data = await res.json()
+    return data?.data || null
+  } catch (e) {
+    return null
+  }
+}
+
 export default async function handler(req, res) {
   try {
     res.setHeader('Access-Control-Allow-Origin', '*')
@@ -24,7 +38,7 @@ export default async function handler(req, res) {
     const today = new Date().toISOString().split('T')[0]
     const headers = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
 
-    // Solo checked_in — el endpoint más confiable
+    // Huéspedes en casa
     const enCasaRes = await fetch(
       `https://api.cloudbeds.com/api/v1.1/getReservations?status=checked_in&pageSize=25`,
       { headers }
@@ -45,20 +59,29 @@ export default async function handler(req, res) {
     const totalHabitaciones = 25
     const ocupacion = Math.round((enCasaCount / totalHabitaciones) * 100)
 
-    // ADR desde roomTotal/nights
+    // ── FIX ADR ────────────────────────────────────────────────────
+    // Antes: leía roomTotal de la lista general → siempre 0
+    // Ahora: pide el detalle de cada reserva individualmente
+    const detalles = await Promise.all(
+      enCasa.map(r => getReservacionDetalle(r.reservationID, headers))
+    )
+
     let totalRevenue = 0
     let totalNoches = 0
-    enCasa.forEach(r => {
-      const roomTotal = parseFloat(r.roomTotal || r.total || r.grandTotal || 0)
-      const nights = parseInt(r.nights || 1)
+
+    detalles.forEach(d => {
+      if (!d) return
+      const roomTotal = parseFloat(d.roomTotal || 0)
+      const nights = Math.max(1, parseInt(d.nights || 1))
       if (roomTotal > 0) {
-        totalRevenue += roomTotal / nights
-        totalNoches++
+        totalRevenue += roomTotal
+        totalNoches += nights
       }
     })
 
     const adr = totalNoches > 0 ? Math.round(totalRevenue / totalNoches) : 0
     const revpar = Math.round((ocupacion / 100) * adr)
+    // ── FIN FIX ────────────────────────────────────────────────────
 
     return res.status(200).json({
       fecha: today,
@@ -69,14 +92,14 @@ export default async function handler(req, res) {
       totalHabitaciones,
       adr,
       revpar,
-      enCasaDetalle: enCasa.slice(0, 8).map(r => ({
-        nombre: r.guestName || 'Huésped',
-        habitacion: r.roomNumber || '—',
-        salida: r.endDate || '—',
-        canal: r.sourceName || '—',
-        noches: parseInt(r.nights || 1),
-        adrNoche: r.roomTotal && r.nights
-          ? Math.round(parseFloat(r.roomTotal) / parseInt(r.nights))
+      enCasaDetalle: detalles.slice(0, 8).map(d => ({
+        nombre: d?.guestName || 'Huésped',
+        habitacion: d?.roomNumber || '—',
+        salida: d?.checkOut || d?.endDate || '—',
+        canal: d?.sourceName || '—',
+        noches: Math.max(1, parseInt(d?.nights || 1)),
+        adrNoche: d?.roomTotal && d?.nights
+          ? Math.round(parseFloat(d.roomTotal) / Math.max(1, parseInt(d.nights)))
           : 0
       })),
       llegadasDetalle: llegadas.slice(0, 8).map(r => ({
