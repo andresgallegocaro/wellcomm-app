@@ -20,37 +20,69 @@ export default async function handler(req, res) {
   try {
     const token = await getFreshToken()
     const headers = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+    const today = new Date().toISOString().split('T')[0]
 
-    const listaRes = await fetch(
-      'https://api.cloudbeds.com/api/v1.1/getReservations?status=checked_in&pageSize=3',
+    // TEST 1: reservas futuras (On the Books)
+    const futuraRes = await fetch(
+      `https://api.cloudbeds.com/api/v1.1/getReservations?status=not_checked_in&pageSize=10`,
       { headers }
     )
-    const listaData = await listaRes.json()
-    const lista = listaData?.data || []
-    const primera = lista[0]
+    const futuraData = await futuraRes.json()
 
-    const detalleRes = await fetch(
-      `https://api.cloudbeds.com/api/v1.1/getReservation?reservationID=${primera.reservationID}`,
+    // TEST 2: llegadas hoy
+    const llegadasRes = await fetch(
+      `https://api.cloudbeds.com/api/v1.1/getReservations?status=not_checked_in&checkInFrom=${today}&checkInTo=${today}&pageSize=10`,
       { headers }
     )
-    const detalleJson = await detalleRes.json()
-    const d = detalleJson?.data
+    const llegadasData = await llegadasRes.json()
 
-    // Solo los campos de dinero — para ver exactamente qué llega
+    // TEST 3: campos de la primera reserva en casa
+    const enCasaRes = await fetch(
+      `https://api.cloudbeds.com/api/v1.1/getReservations?status=checked_in&pageSize=3`,
+      { headers }
+    )
+    const enCasaData = await enCasaRes.json()
+    const primera = Array.isArray(enCasaData?.data)
+      ? enCasaData.data[0]
+      : Object.values(enCasaData?.data || {})[0]
+
+    let detalleHabitacion = null
+    if (primera?.reservationID) {
+      const dr = await fetch(
+        `https://api.cloudbeds.com/api/v1.1/getReservation?reservationID=${primera.reservationID}`,
+        { headers }
+      )
+      const dj = await dr.json()
+      const d = dj?.data
+      detalleHabitacion = {
+        roomName: d?.roomName,
+        roomNumber: d?.roomNumber,
+        roomID: d?.roomID,
+        rooms: d?.rooms,
+        assigned: d?.assigned
+      }
+    }
+
     return res.status(200).json({
-      reservationID: primera.reservationID,
-      roomTotal_raw: d.roomTotal,
-      roomTotal_tipo: typeof d.roomTotal,
-      roomTotal_parsed: parseFloat(d.roomTotal || 0),
-      startDate: d.startDate,
-      endDate: d.endDate,
-      grandTotal: d.grandTotal,
-      subTotal: d.subTotal,
-      total: d.total,
-      nights_dailyRates: d.dailyRates?.length,
-      sourceName: d.sourceName,
-      source: d.source,
-      roomName: d.roomName
+      today,
+      futuras: {
+        total: Array.isArray(futuraData?.data)
+          ? futuraData.data.length
+          : Object.keys(futuraData?.data || {}).length,
+        esArray: Array.isArray(futuraData?.data),
+        muestra: Array.isArray(futuraData?.data)
+          ? futuraData.data.slice(0, 2)
+          : Object.values(futuraData?.data || {}).slice(0, 2)
+      },
+      llegadasHoy: {
+        total: Array.isArray(llegadasData?.data)
+          ? llegadasData.data.length
+          : Object.keys(llegadasData?.data || {}).length,
+        muestra: Array.isArray(llegadasData?.data)
+          ? llegadasData.data.slice(0, 2)
+          : Object.values(llegadasData?.data || {}).slice(0, 2)
+      },
+      habitacion: detalleHabitacion
     })
 
   } catch (error) {
