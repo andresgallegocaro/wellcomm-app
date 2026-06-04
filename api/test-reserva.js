@@ -10,45 +10,72 @@ async function getFreshToken() {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: params.toString()
   })
-  const data = await res.json()
-  return data.access_token
+  return (await res.json()).access_token
+}
+
+function normalizar(data) {
+  if (!data?.data) return []
+  return Array.isArray(data.data) ? data.data : Object.values(data.data)
+}
+
+async function traerTodas(headers, url) {
+  let todas = []
+  let page = 1
+  while (page <= 10) {
+    const res = await fetch(`${url}&pageSize=100&pageNumber=${page}`, { headers })
+    const lista = normalizar(await res.json())
+    todas = todas.concat(lista)
+    if (lista.length < 100) break
+    page++
+  }
+  return todas
 }
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
-
   try {
     const token = await getFreshToken()
     const headers = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+    const inicio = '2026-04-01', fin = '2026-04-30'
 
-    // Tom Dequesne — estadía que cruza abril/mayo (29 abr → 3 may)
-    const lista = await fetch(
-      `https://api.cloudbeds.com/api/v1.1/getReservations?checkInFrom=2026-04-29&checkInTo=2026-04-29&pageSize=20`,
-      { headers }
-    ).then(r => r.json())
+    // MÉTODO 1: solape (lo que usamos ahora)
+    const m1 = await traerTodas(headers, `https://api.cloudbeds.com/api/v1.1/getReservations?checkInTo=${fin}&checkOutFrom=${inicio}`)
 
-    const arr = Array.isArray(lista?.data) ? lista.data : Object.values(lista?.data || {})
-    const tom = arr.find(r => (r.guestName || '').includes('Dequesne')) || arr[0]
+    // MÉTODO 2: solo check-in en abril
+    const m2 = await traerTodas(headers, `https://api.cloudbeds.com/api/v1.1/getReservations?checkInFrom=${inicio}&checkInTo=${fin}`)
 
-    const detalle = await fetch(
-      `https://api.cloudbeds.com/api/v1.1/getReservation?reservationID=${tom.reservationID}`,
-      { headers }
-    ).then(r => r.json())
+    // MÉTODO 3: sin filtro de fechas, todas las reservas
+    const m3 = await traerTodas(headers, `https://api.cloudbeds.com/api/v1.1/getReservations?`)
 
-    const d = detalle?.data
+    // Para el método 1, contar noches reales en abril (muestra de 30 para no demorar)
+    let nochesAbril = 0, ingresosAbril = 0, conDailyRates = 0, sinDailyRates = 0
+    for (const r of m1.slice(0, 40)) {
+      try {
+        const d = (await fetch(`https://api.cloudbeds.com/api/v1.1/getReservation?reservationID=${r.reservationID}`, { headers }).then(x => x.json()))?.data
+        if (!d || !['checked_in','checked_out','confirmed'].includes(d.status)) continue
+        const asignadas = d.assigned || []
+        let tieneRates = false
+        asignadas.forEach(a => {
+          if (a.dailyRates?.length) tieneRates = true
+          ;(a.dailyRates || []).forEach(dr => {
+            if (dr.date >= inicio && dr.date <= fin) { nochesAbril++; ingresosAbril += parseFloat(dr.rate||0) }
+          })
+        })
+        if (tieneRates) conDailyRates++; else sinDailyRates++
+      } catch {}
+    }
 
     return res.status(200).json({
-      huesped: d?.guestName,
-      checkin: d?.startDate,
-      checkout: d?.endDate,
-      total: d?.total,
-      estado: d?.status,
-      // El dato clave: desglose por día
-      dailyRates_directo: d?.dailyRates,
-      dailyRates_enAssigned: d?.assigned?.map(a => ({ room: a.roomName, rates: a.dailyRates }))
+      metodo1_solape_count: m1.length,
+      metodo2_checkin_count: m2.length,
+      metodo3_todas_count: m3.length,
+      muestra40_de_metodo1: {
+        nochesAbril, ingresosAbril,
+        reservasConDailyRates: conDailyRates,
+        reservasSinDailyRates: sinDailyRates
+      }
     })
-
-  } catch (error) {
-    return res.status(500).json({ error: error.message })
+  } catch (e) {
+    return res.status(500).json({ error: e.message })
   }
 }
