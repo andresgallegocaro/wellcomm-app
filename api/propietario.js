@@ -47,6 +47,8 @@ function normalizar(data) {
   return Array.isArray(data.data) ? data.data : Object.values(data.data)
 }
 
+const sleep = (ms) => new Promise(r => setTimeout(r, ms))
+
 const PROPIETARIOS = {
   '0001': { nombre: 'Propietario 1', pin: '1111' },
   '0002': { nombre: 'Propietario 2', pin: '2222' },
@@ -138,18 +140,16 @@ Si solo ves un nombre en un comprobante bancario, cruza con la base primero. Imp
   catch { return { proveedor: '', importe: 0, fecha: '', concepto: 'No se pudo leer', categoria: 'Otros', proveedorConocido: false } }
 }
 
-// Traer TODAS las reservas que se solapan con el mes (con paginación)
+// Traer TODAS las reservas que se solapan con el mes (paginación completa)
 async function getReservasDelMes(headers, inicio, fin) {
   let todas = []
   let pageNumber = 1
-  // Traemos por check-in hasta el fin del mes, y filtramos por solape después
-  while (pageNumber <= 5) {
+  while (pageNumber <= 10) {
     const res = await fetch(
       `https://api.cloudbeds.com/api/v1.1/getReservations?checkInTo=${fin}&checkOutFrom=${inicio}&pageSize=100&pageNumber=${pageNumber}`,
       { headers }
     )
-    const data = await res.json()
-    const lista = normalizar(data)
+    const lista = normalizar(await res.json())
     todas = todas.concat(lista)
     if (lista.length < 100) break
     pageNumber++
@@ -157,7 +157,26 @@ async function getReservasDelMes(headers, inicio, fin) {
   return todas
 }
 
-// MOTOR DE REVENUE: cuenta noche por noche dentro del mes
+// Traer detalle de reservas EN LOTES para no saturar Cloudbeds (evita rate limit)
+async function traerDetallesEnLotes(reservas, headers, tamLote = 15, pausaMs = 250) {
+  const resultados = []
+  for (let i = 0; i < reservas.length; i += tamLote) {
+    const lote = reservas.slice(i, i + tamLote)
+    const detallesLote = await Promise.all(
+      lote.map(async r => {
+        try {
+          const dr = await fetch(`https://api.cloudbeds.com/api/v1.1/getReservation?reservationID=${r.reservationID}`, { headers })
+          return (await dr.json())?.data || null
+        } catch { return null }
+      })
+    )
+    resultados.push(...detallesLote)
+    if (i + tamLote < reservas.length) await sleep(pausaMs)
+  }
+  return resultados
+}
+
+// MOTOR DE REVENUE: cuenta noche por noche, en lotes, todas las reservas
 async function getCloudbedsData(mes) {
   const token = await getFreshToken()
   const headers = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
@@ -169,16 +188,7 @@ async function getCloudbedsData(mes) {
 
   try {
     const lista = await getReservasDelMes(headers, inicio, fin)
-
-    // Detalle individual de cada reserva
-    const detalles = await Promise.all(
-      lista.map(async r => {
-        try {
-          const dr = await fetch(`https://api.cloudbeds.com/api/v1.1/getReservation?reservationID=${r.reservationID}`, { headers })
-          return (await dr.json())?.data || null
-        } catch { return null }
-      })
-    )
+    const detalles = await traerDetallesEnLotes(lista, headers)
 
     let ingresosMes = 0
     let nochesMes = 0
@@ -186,18 +196,14 @@ async function getCloudbedsData(mes) {
 
     detalles.forEach(d => {
       if (!d) return
-      // Excluir canceladas y no-shows
       if (!ESTADOS_VALIDOS.includes(d.status)) return
 
-      // Recorrer dailyRates de cada habitación asignada
       const asignadas = d.assigned || []
       let revestaMes = 0
       asignadas.forEach(a => {
         (a.dailyRates || []).forEach(dr => {
-          // Solo contar las noches que caen dentro del mes consultado
           if (dr.date >= inicio && dr.date <= fin) {
-            const rate = parseFloat(dr.rate || 0)
-            revestaMes += rate
+            revestaMes += parseFloat(dr.rate || 0)
             nochesMes += 1
           }
         })
@@ -213,19 +219,12 @@ async function getCloudbedsData(mes) {
     const adr = nochesMes > 0 ? Math.round(ingresosMes / nochesMes) : 0
     const totalNochesDisp = 25 * lastDay
     const ocupacion = totalNochesDisp > 0 ? Math.round((nochesMes / totalNochesDisp) * 100) : 0
-    const revpar = Math.round((ocupacion / 100) * adr)
+    const revpar = totalNochesDisp > 0 ? Math.round(ingresosMes / totalNochesDisp) : 0
 
-    // En casa AHORA (solo relevante para el mes en curso)
+    // En casa AHORA
     const enCasaRes = await fetch(`https://api.cloudbeds.com/api/v1.1/getReservations?status=checked_in&pageSize=25`, { headers })
     const enCasaLista = normalizar(await enCasaRes.json())
-    const detallesEnCasa = await Promise.all(
-      enCasaLista.map(async r => {
-        try {
-          const dr = await fetch(`https://api.cloudbeds.com/api/v1.1/getReservation?reservationID=${r.reservationID}`, { headers })
-          return (await dr.json())?.data || null
-        } catch { return null }
-      })
-    )
+    const detallesEnCasa = await traerDetallesEnLotes(enCasaLista, headers)
 
     return {
       ingresosMes: Math.round(ingresosMes),
@@ -244,7 +243,7 @@ async function getCloudbedsData(mes) {
       }))
     }
   } catch (e) {
-    return { ingresosMes: 0, noches: 0, adr: 0, ocupacion: 0, revpar: 0, enCasa: 0, totalReservas: 0, canales: {}, reservasActuales: [] }
+    return { ingresosMes: 0, noches: 0, adr: 0, ocupacion: 0, revpar: 0, enCasa: 0, totalReservas: 0, canales: {}, reservasActuales: [], error: e.message }
   }
 }
 
