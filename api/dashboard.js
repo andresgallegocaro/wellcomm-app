@@ -48,33 +48,53 @@ export default async function handler(req, res) {
       { headers }
     )
     const enCasaData = await enCasaRes.json()
-    const enCasaLista = enCasaData?.data || []
+    const enCasaLista = Array.isArray(enCasaData?.data)
+      ? enCasaData.data
+      : Object.values(enCasaData?.data || {})
 
-    // Llegadas hoy
+    // Llegadas hoy — próximos 7 días para tener contexto
+    const manana = new Date()
+    manana.setDate(manana.getDate() + 7)
+    const mananaStr = manana.toISOString().split('T')[0]
+
     const llegadasRes = await fetch(
-      `https://api.cloudbeds.com/api/v1.1/getReservations?status=not_checked_in&checkIn=${today}&pageSize=25`,
+      `https://api.cloudbeds.com/api/v1.1/getReservations?checkInFrom=${today}&checkInTo=${mananaStr}&pageSize=25`,
       { headers }
     )
     const llegadasText = await llegadasRes.text()
     const llegadasData = llegadasText.startsWith('<') ? { data: [] } : JSON.parse(llegadasText)
-    const llegadas = llegadasData?.data || []
+    const llegadasRaw = Array.isArray(llegadasData?.data)
+      ? llegadasData.data
+      : Object.values(llegadasData?.data || {})
+
+    // Solo las de hoy para el contador
+    const llegadasHoy = llegadasRaw.filter(r => r.startDate === today || r.checkIn === today)
+
+    // Salidas hoy
+    const salidasRes = await fetch(
+      `https://api.cloudbeds.com/api/v1.1/getReservations?checkOutFrom=${today}&checkOutTo=${today}&status=checked_in&pageSize=25`,
+      { headers }
+    )
+    const salidasText = await salidasRes.text()
+    const salidasData = salidasText.startsWith('<') ? { data: [] } : JSON.parse(salidasText)
+    const salidasLista = Array.isArray(salidasData?.data)
+      ? salidasData.data
+      : Object.values(salidasData?.data || {})
 
     const enCasaCount = enCasaLista.length
     const totalHabitaciones = 25
     const ocupacion = Math.round((enCasaCount / totalHabitaciones) * 100)
 
-    // Detalle individual de cada reserva
+    // Revenue real — getReservation individual
     const detalles = await Promise.all(
       enCasaLista.map(r => getDetalleReserva(r.reservationID, headers))
     )
 
-    // ── FIX DEFINITIVO: el campo correcto es "total", no "roomTotal" ──
     let totalRevenue = 0
     let totalNoches = 0
-
     detalles.forEach(d => {
       if (!d) return
-      const revenue = parseFloat(d.total || 0)   // ← "total": 249335
+      const revenue = parseFloat(d.total || 0)
       const nights = calcNights(d.startDate, d.endDate)
       if (revenue > 0) {
         totalRevenue += revenue
@@ -89,33 +109,44 @@ export default async function handler(req, res) {
       fecha: today,
       ocupacion,
       enCasa: enCasaCount,
-      llegadas: llegadas.length,
-      salidas: 0,
+      llegadas: llegadasHoy.length,
+      salidas: salidasLista.length,
       totalHabitaciones,
       adr,
       revpar,
+
+      // Detalle con número de habitación real
       enCasaDetalle: detalles.slice(0, 10).map(d => {
         if (!d) return { nombre: 'Huésped', habitacion: '—', salida: '—', canal: '—', noches: 1, adrNoche: 0 }
         const revenue = parseFloat(d.total || 0)
         const nights = calcNights(d.startDate, d.endDate)
+        // ✅ FIX: el número de cuarto está en assigned[0].roomName
+        const habitacion = d.assigned?.[0]?.roomName || d.roomName || '—'
         return {
           nombre: d.guestName || 'Huésped',
-          habitacion: d.roomName || '—',
+          habitacion,
           salida: d.endDate || '—',
-          canal: d.source || '—',
+          canal: d.source || d.sourceName || '—',
           noches: nights,
           adrNoche: nights > 0 ? Math.round(revenue / nights) : 0
         }
       }),
-      llegadasDetalle: llegadas.slice(0, 8).map(r => ({
+
+      llegadasDetalle: llegadasHoy.slice(0, 8).map(r => ({
         nombre: r.guestName || 'Huésped',
-        habitacion: r.roomNumber || '—',
+        habitacion: r.roomName || r.assigned?.[0]?.roomName || '—',
         noches: r.nights || '—',
         pais: r.guestCountry || '—',
-        canal: r.sourceName || '—',
+        canal: r.sourceName || r.source || '—',
         total: parseFloat(r.grandTotal || r.total || 0)
       })),
-      salidasDetalle: []
+
+      salidasDetalle: salidasLista.slice(0, 8).map(r => ({
+        nombre: r.guestName || 'Huésped',
+        habitacion: r.roomName || '—',
+        canal: r.sourceName || r.source || '—',
+        noches: r.nights || '—'
+      }))
     })
 
   } catch (error) {
