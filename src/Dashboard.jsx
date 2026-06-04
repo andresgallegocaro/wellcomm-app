@@ -19,12 +19,8 @@ export default function Dashboard({ onBack }) {
     <div style={{ minHeight: '100vh', background: 'var(--color-bg)', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
       <div style={{
-        background: 'var(--color-text)',
-        color: 'white',
-        padding: '1rem 1.5rem',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '1rem'
+        background: 'var(--color-text)', color: 'white', padding: '1rem 1.5rem',
+        display: 'flex', alignItems: 'center', gap: '1rem'
       }}>
         <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'white', fontSize: '1.2rem', cursor: 'pointer' }}>←</button>
         <div>
@@ -68,24 +64,46 @@ export default function Dashboard({ onBack }) {
               <div key={i} style={{
                 padding: '0.6rem 0',
                 borderBottom: i < data.llegadasDetalle.length - 1 ? '1px solid var(--color-border)' : 'none',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center'
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center'
               }}>
                 <div>
-                  <div style={{ fontSize: '0.85rem', fontWeight: 500 }}>{r.guestName || r.guest?.name || 'Huésped'}</div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 500 }}>{r.nombre || 'Huésped'}</div>
                   <div style={{ fontSize: '0.72rem', color: 'var(--color-text-light)' }}>
-                    Hab. {r.roomNumber || r.assignedRoom || '—'} · {r.nights || '—'} noche(s)
+                    Hab. {r.habitacion || '—'} · {r.noches || '—'} noche(s) · {r.canal || '—'}
                   </div>
                 </div>
                 <div style={{
-                  background: 'var(--color-bg)',
-                  borderRadius: '20px',
-                  padding: '0.25rem 0.75rem',
-                  fontSize: '0.72rem',
-                  color: 'var(--color-text-light)'
+                  background: 'var(--color-bg)', borderRadius: '20px', padding: '0.25rem 0.75rem',
+                  fontSize: '0.72rem', color: 'var(--color-text-light)'
                 }}>
-                  ${parseFloat(r.totalPrice || 0).toLocaleString('es-CO')}
+                  ${parseFloat(r.total || 0).toLocaleString('es-CO')}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Lista salidas */}
+        {data.salidasDetalle?.length > 0 && (
+          <div style={{ background: 'white', borderRadius: 'var(--radius)', padding: '1.25rem', boxShadow: 'var(--shadow)' }}>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', marginBottom: '0.75rem', letterSpacing: '0.05em' }}>
+              🛫 Salidas de hoy
+            </div>
+            {data.salidasDetalle.map((r, i) => (
+              <div key={i} style={{
+                padding: '0.6rem 0',
+                borderBottom: i < data.salidasDetalle.length - 1 ? '1px solid var(--color-border)' : 'none',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+              }}>
+                <div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 500 }}>{r.nombre || 'Huésped'}</div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--color-text-light)' }}>{r.canal || '—'}</div>
+                </div>
+                <div style={{
+                  background: '#FFF3E0', borderRadius: '20px', padding: '0.25rem 0.75rem',
+                  fontSize: '0.72rem', color: '#b8742a'
+                }}>
+                  Check-out
                 </div>
               </div>
             ))}
@@ -93,33 +111,28 @@ export default function Dashboard({ onBack }) {
         )}
 
         {/* Lista en casa */}
-        {data.reservasDetalle?.length > 0 && (
+        {data.enCasaDetalle?.length > 0 && (
           <div style={{ background: 'white', borderRadius: 'var(--radius)', padding: '1.25rem', boxShadow: 'var(--shadow)' }}>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', marginBottom: '0.75rem', letterSpacing: '0.05em' }}>
               🏨 En casa ahora
             </div>
-            {data.reservasDetalle.map((r, i) => (
+            {data.enCasaDetalle.map((r, i) => (
               <div key={i} style={{
                 padding: '0.6rem 0',
-                borderBottom: i < data.reservasDetalle.length - 1 ? '1px solid var(--color-border)' : 'none',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center'
+                borderBottom: i < data.enCasaDetalle.length - 1 ? '1px solid var(--color-border)' : 'none',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center'
               }}>
                 <div>
-                  <div style={{ fontSize: '0.85rem', fontWeight: 500 }}>{r.guestName || r.guest?.name || 'Huésped'}</div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 500 }}>{r.nombre || 'Huésped'}</div>
                   <div style={{ fontSize: '0.72rem', color: 'var(--color-text-light)' }}>
-                    Hab. {r.roomNumber || r.assignedRoom || '—'} · Sale: {r.endDate || '—'}
+                    Hab. {r.habitacion || '—'} · Sale: {r.salida || '—'} · {r.canal || '—'}
                   </div>
                 </div>
                 <div style={{
-                  background: '#E8F5EE',
-                  borderRadius: '20px',
-                  padding: '0.25rem 0.75rem',
-                  fontSize: '0.72rem',
-                  color: '#2d7a4f'
+                  background: '#E8F5EE', borderRadius: '20px', padding: '0.25rem 0.75rem',
+                  fontSize: '0.72rem', color: '#2d7a4f', textAlign: 'right', flexShrink: 0
                 }}>
-                  In house
+                  ${parseFloat(r.adrNoche || 0).toLocaleString('es-CO')}/noche
                 </div>
               </div>
             ))}
@@ -134,11 +147,8 @@ export default function Dashboard({ onBack }) {
 function KPICard({ titulo, valor, sub, color }) {
   return (
     <div style={{
-      background: 'white',
-      borderRadius: 'var(--radius)',
-      padding: '1rem',
-      boxShadow: 'var(--shadow)',
-      borderLeft: `3px solid ${color}`
+      background: 'white', borderRadius: 'var(--radius)', padding: '1rem',
+      boxShadow: 'var(--shadow)', borderLeft: `3px solid ${color}`
     }}>
       <div style={{ fontSize: '0.7rem', color: 'var(--color-text-light)', letterSpacing: '0.1em', marginBottom: '0.4rem' }}>{titulo}</div>
       <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: 500 }}>{valor}</div>
@@ -150,12 +160,8 @@ function KPICard({ titulo, valor, sub, color }) {
 function MovCard({ emoji, label, valor, color }) {
   return (
     <div style={{
-      background: 'var(--color-bg)',
-      borderRadius: 'var(--radius)',
-      padding: '0.75rem 1rem',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '0.75rem'
+      background: 'var(--color-bg)', borderRadius: 'var(--radius)', padding: '0.75rem 1rem',
+      display: 'flex', alignItems: 'center', gap: '0.75rem'
     }}>
       <span style={{ fontSize: '1.5rem' }}>{emoji}</span>
       <div>
