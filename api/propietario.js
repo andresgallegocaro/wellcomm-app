@@ -42,11 +42,6 @@ async function getFreshToken() {
   return data.access_token || process.env.CLOUDBEDS_ACCESS_TOKEN
 }
 
-function calcNights(startDate, endDate) {
-  const ms = new Date(endDate) - new Date(startDate)
-  return Math.max(1, Math.round(ms / 86400000))
-}
-
 function normalizar(data) {
   if (!data?.data) return []
   return Array.isArray(data.data) ? data.data : Object.values(data.data)
@@ -59,15 +54,13 @@ const PROPIETARIOS = {
 }
 
 const CATEGORIAS = ['F&B', 'Spa', 'Habitaciones', 'Mantenimiento', 'Legal', 'Servicios', 'Nómina', 'Marketing', 'Otros']
+const ESTADOS_VALIDOS = ['checked_in', 'checked_out', 'confirmed']
 
-// Leer proveedores desde Notion (con cache de 10 min en KV)
 async function getProveedores() {
-  // Intentar cache primero
   const cache = await kvGet('proveedores_cache')
   if (cache && cache.timestamp && (Date.now() - cache.timestamp < 600000)) {
     return cache.lista
   }
-
   try {
     const res = await fetch(`https://api.notion.com/v1/databases/${PROVEEDORES_DB_ID}/query`, {
       method: 'POST',
@@ -79,20 +72,17 @@ async function getProveedores() {
       body: JSON.stringify({ page_size: 100 })
     })
     const data = await res.json()
-
     const lista = (data.results || []).map(page => {
       const props = page.properties
-      const nombre = props.Proveedor?.title?.[0]?.plain_text || ''
-      const categoria = props.Categoria?.select?.name || 'Otros'
-      const sector = props.Sector?.rich_text?.[0]?.plain_text || ''
-      return { nombre, categoria, sector }
+      return {
+        nombre: props.Proveedor?.title?.[0]?.plain_text || '',
+        categoria: props.Categoria?.select?.name || 'Otros',
+        sector: props.Sector?.rich_text?.[0]?.plain_text || ''
+      }
     }).filter(p => p.nombre)
-
-    // Guardar en cache
     await kvSet('proveedores_cache', { lista, timestamp: Date.now() })
     return lista
   } catch (e) {
-    // Si Notion falla, usar cache aunque esté viejo
     return cache?.lista || []
   }
 }
@@ -115,40 +105,26 @@ async function leerReciboPDF(pdfBase64, proveedores) {
       messages: [{
         role: 'user',
         content: [
-          {
-            type: 'document',
-            source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 }
-          },
+          { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 } },
           {
             type: 'text',
-            text: `Eres el contador de WELLcomm Spa & Hotel en Medellín. Analiza este recibo o comprobante de pago (puede ser un comprobante bancario de transferencia) y extrae los datos.
+            text: `Eres el contador de WELLcomm Spa & Hotel en Medellín. Analiza este recibo o comprobante de pago y extrae los datos.
 
 BASE DE PROVEEDORES CONOCIDOS (si el beneficiario coincide o se parece a uno de estos, usa SU categoría):
 ${listaProveedores}
 
-Responde ÚNICAMENTE con un objeto JSON válido, sin markdown, sin explicaciones:
+Responde ÚNICAMENTE con un objeto JSON válido, sin markdown:
 {
-  "proveedor": "nombre del proveedor o beneficiario del pago",
-  "importe": número entero en pesos colombianos sin puntos ni símbolos (ej: 850000),
+  "proveedor": "nombre del proveedor o beneficiario",
+  "importe": número entero en pesos colombianos sin puntos ni símbolos,
   "fecha": "YYYY-MM-DD",
-  "concepto": "descripción breve del pago",
-  "categoria": "una de estas exactamente: F&B, Spa, Habitaciones, Mantenimiento, Legal, Servicios, Nómina, Marketing, Otros",
-  "proveedorConocido": true si el beneficiario coincide con la base de proveedores, false si no
+  "concepto": "descripción breve",
+  "categoria": "una de: F&B, Spa, Habitaciones, Mantenimiento, Legal, Servicios, Nómina, Marketing, Otros",
+  "proveedorConocido": true o false
 }
 
-Reglas de categorización (si NO está en la base de proveedores):
-- F&B: comida, bebida, insumos de cocina/bar, licores, desayunos, alimentos
-- Spa: productos de spa, aromaterapia, insumos termales, terapeutas
-- Habitaciones: amenities, lencería, lavandería, limpieza de habitación
-- Mantenimiento: reparaciones, repuestos, técnicos, obra, ferretería
-- Legal: abogados, notaría, trámites, licencias, impuestos
-- Servicios: agua, luz (EPM), gas, internet, software, seguros
-- Nómina: salarios, prestaciones, seguridad social
-- Marketing: publicidad, redes, fotografía, diseño
-- Otros: cualquier cosa que no encaje
-
-Si en un comprobante bancario solo ves un nombre, intenta cruzarlo con la base primero. Si no coincide y no hay contexto, usa "Otros".
-Si no puedes leer el importe con certeza, pon 0. Si no hay fecha clara, usa la fecha de hoy.`
+Reglas (si NO está en la base): F&B=comida/bebida/licores; Spa=productos spa/terapeutas; Habitaciones=amenities/lencería/lavandería; Mantenimiento=reparaciones/ferretería; Legal=abogados/notaría/impuestos; Servicios=agua/luz/gas/internet/software/seguros; Nómina=salarios/prestaciones; Marketing=publicidad/diseño; Otros=resto.
+Si solo ves un nombre en un comprobante bancario, cruza con la base primero. Importe ilegible = 0. Sin fecha = hoy.`
           }
         ]
       }]
@@ -158,77 +134,105 @@ Si no puedes leer el importe con certeza, pon 0. Si no hay fecha clara, usa la f
   const claudeData = await claudeRes.json()
   let texto = claudeData.content?.[0]?.text || '{}'
   texto = texto.replace(/```json/g, '').replace(/```/g, '').trim()
-  try {
-    return JSON.parse(texto)
-  } catch {
-    return { proveedor: '', importe: 0, fecha: '', concepto: 'No se pudo leer', categoria: 'Otros', proveedorConocido: false }
-  }
+  try { return JSON.parse(texto) }
+  catch { return { proveedor: '', importe: 0, fecha: '', concepto: 'No se pudo leer', categoria: 'Otros', proveedorConocido: false } }
 }
 
+// Traer TODAS las reservas que se solapan con el mes (con paginación)
+async function getReservasDelMes(headers, inicio, fin) {
+  let todas = []
+  let pageNumber = 1
+  // Traemos por check-in hasta el fin del mes, y filtramos por solape después
+  while (pageNumber <= 5) {
+    const res = await fetch(
+      `https://api.cloudbeds.com/api/v1.1/getReservations?checkInTo=${fin}&checkOutFrom=${inicio}&pageSize=100&pageNumber=${pageNumber}`,
+      { headers }
+    )
+    const data = await res.json()
+    const lista = normalizar(data)
+    todas = todas.concat(lista)
+    if (lista.length < 100) break
+    pageNumber++
+  }
+  return todas
+}
+
+// MOTOR DE REVENUE: cuenta noche por noche dentro del mes
 async function getCloudbedsData(mes) {
   const token = await getFreshToken()
   const headers = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
 
   const [year, month] = mes.split('-')
-  const fechaInicio = `${mes}-01`
   const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate()
-  const fechaFin = `${mes}-${String(lastDay).padStart(2, '0')}`
+  const inicio = `${mes}-01`
+  const fin = `${mes}-${String(lastDay).padStart(2, '0')}`
 
   try {
-    const [delMesRes, enCasaRes] = await Promise.all([
-      fetch(`https://api.cloudbeds.com/api/v1.1/getReservations?checkOutFrom=${fechaInicio}&checkOutTo=${fechaFin}&pageSize=100`, { headers }),
-      fetch(`https://api.cloudbeds.com/api/v1.1/getReservations?status=checked_in&pageSize=25`, { headers }),
-    ])
+    const lista = await getReservasDelMes(headers, inicio, fin)
 
-    const delMesLista = normalizar(await delMesRes.json())
-    const enCasaLista = normalizar(await enCasaRes.json())
-
+    // Detalle individual de cada reserva
     const detalles = await Promise.all(
-      delMesLista.slice(0, 60).map(async r => {
+      lista.map(async r => {
         try {
           const dr = await fetch(`https://api.cloudbeds.com/api/v1.1/getReservation?reservationID=${r.reservationID}`, { headers })
-          const dj = await dr.json()
-          return dj?.data || null
+          return (await dr.json())?.data || null
         } catch { return null }
       })
     )
 
     let ingresosMes = 0
-    let noches = 0
+    let nochesMes = 0
     const canales = {}
+
     detalles.forEach(d => {
       if (!d) return
-      const total = parseFloat(d.total || 0)
-      const n = calcNights(d.startDate, d.endDate)
-      if (total > 0) {
-        ingresosMes += total
-        noches += n
+      // Excluir canceladas y no-shows
+      if (!ESTADOS_VALIDOS.includes(d.status)) return
+
+      // Recorrer dailyRates de cada habitación asignada
+      const asignadas = d.assigned || []
+      let revestaMes = 0
+      asignadas.forEach(a => {
+        (a.dailyRates || []).forEach(dr => {
+          // Solo contar las noches que caen dentro del mes consultado
+          if (dr.date >= inicio && dr.date <= fin) {
+            const rate = parseFloat(dr.rate || 0)
+            revestaMes += rate
+            nochesMes += 1
+          }
+        })
+      })
+
+      if (revestaMes > 0) {
+        ingresosMes += revestaMes
         const canal = d.source || d.sourceName || 'Directo'
-        canales[canal] = (canales[canal] || 0) + total
+        canales[canal] = (canales[canal] || 0) + revestaMes
       }
     })
 
-    const adr = noches > 0 ? Math.round(ingresosMes / noches) : 0
-    const diasMes = lastDay
-    const totalNochesDisp = 25 * diasMes
-    const ocupacion = totalNochesDisp > 0 ? Math.round((noches / totalNochesDisp) * 100) : 0
+    const adr = nochesMes > 0 ? Math.round(ingresosMes / nochesMes) : 0
+    const totalNochesDisp = 25 * lastDay
+    const ocupacion = totalNochesDisp > 0 ? Math.round((nochesMes / totalNochesDisp) * 100) : 0
     const revpar = Math.round((ocupacion / 100) * adr)
-    const enCasa = enCasaLista.length
 
+    // En casa AHORA (solo relevante para el mes en curso)
+    const enCasaRes = await fetch(`https://api.cloudbeds.com/api/v1.1/getReservations?status=checked_in&pageSize=25`, { headers })
+    const enCasaLista = normalizar(await enCasaRes.json())
     const detallesEnCasa = await Promise.all(
       enCasaLista.map(async r => {
         try {
           const dr = await fetch(`https://api.cloudbeds.com/api/v1.1/getReservation?reservationID=${r.reservationID}`, { headers })
-          const dj = await dr.json()
-          return dj?.data || null
+          return (await dr.json())?.data || null
         } catch { return null }
       })
     )
 
     return {
       ingresosMes: Math.round(ingresosMes),
-      noches, adr, ocupacion, revpar, enCasa,
-      totalReservas: delMesLista.length,
+      noches: nochesMes,
+      adr, ocupacion, revpar,
+      enCasa: enCasaLista.length,
+      totalReservas: lista.length,
       canales,
       reservasActuales: detallesEnCasa.filter(Boolean).slice(0, 10).map(d => ({
         huesped: d.guestName || 'Huésped',
@@ -237,7 +241,6 @@ async function getCloudbedsData(mes) {
         checkout: d.endDate || '—',
         total: parseFloat(d.total || 0),
         canal: d.source || d.sourceName || 'Directo',
-        noches: calcNights(d.startDate, d.endDate),
       }))
     }
   } catch (e) {
