@@ -14,44 +14,65 @@ async function getFreshToken() {
   return data.access_token
 }
 
+function normalizar(data) {
+  if (!data?.data) return []
+  return Array.isArray(data.data) ? data.data : Object.values(data.data)
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
 
   try {
     const token = await getFreshToken()
     const headers = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
-    const today = new Date().toISOString().split('T')[0]
 
-    // Llegada de hoy
-    const llegadasRes = await fetch(
-      `https://api.cloudbeds.com/api/v1.1/getReservations?status=confirmed&checkInFrom=${today}&checkInTo=${today}&pageSize=5`,
+    // Probamos ABRIL 2026
+    const mes = '2026-04'
+    const inicio = '2026-04-01'
+    const fin = '2026-04-30'
+
+    // Estrategia A: por check-OUT en el mes
+    const porCheckout = await fetch(
+      `https://api.cloudbeds.com/api/v1.1/getReservations?checkOutFrom=${inicio}&checkOutTo=${fin}&pageSize=100`,
       { headers }
-    )
-    const llegadasData = await llegadasRes.json()
-    const lista = Array.isArray(llegadasData?.data)
-      ? llegadasData.data
-      : Object.values(llegadasData?.data || {})
+    ).then(r => r.json())
 
-    if (lista.length === 0) {
-      return res.status(200).json({ error: 'No hay llegadas hoy', llegadasData })
+    // Estrategia B: por check-IN en el mes
+    const porCheckin = await fetch(
+      `https://api.cloudbeds.com/api/v1.1/getReservations?checkInFrom=${inicio}&checkInTo=${fin}&pageSize=100`,
+      { headers }
+    ).then(r => r.json())
+
+    const listaCheckout = normalizar(porCheckout)
+    const listaCheckin = normalizar(porCheckin)
+
+    // Sumar revenue de cada estrategia (con detalle individual de las primeras 5)
+    async function sumarRevenue(lista) {
+      let total = 0
+      const muestra = []
+      for (const r of lista.slice(0, 5)) {
+        try {
+          const dr = await fetch(`https://api.cloudbeds.com/api/v1.1/getReservation?reservationID=${r.reservationID}`, { headers })
+          const d = (await dr.json())?.data
+          const t = parseFloat(d?.total || 0)
+          total += t
+          muestra.push({
+            huesped: d?.guestName,
+            checkin: d?.startDate,
+            checkout: d?.endDate,
+            total: t,
+            estado: d?.status,
+            canal: d?.source
+          })
+        } catch {}
+      }
+      return { count: lista.length, totalPrimeras5: total, muestra }
     }
 
-    const primera = lista[0]
-
-    // Detalle individual de esa llegada
-    const detalleRes = await fetch(
-      `https://api.cloudbeds.com/api/v1.1/getReservation?reservationID=${primera.reservationID}`,
-      { headers }
-    )
-    const detalleData = await detalleRes.json()
-
     return res.status(200).json({
-      reservationID: primera.reservationID,
-      // Qué trae la lista
-      enLista: primera,
-      // Qué trae el detalle (todos los campos)
-      enDetalle: detalleData?.data,
-      httpStatus: detalleRes.status
+      mes,
+      estrategiaA_porCheckout: await sumarRevenue(listaCheckout),
+      estrategiaB_porCheckin: await sumarRevenue(listaCheckin),
     })
 
   } catch (error) {
