@@ -271,12 +271,43 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, datos, totalProveedores: proveedores.length })
     }
 
+    if (req.method === 'POST' && body.action === 'leer_lote') {
+      const proveedores = await getProveedores()
+      const archivos = body.archivos || [] // [{ nombre, pdfBase64 }]
+      const resultados = []
+      // Procesar en lotes de 3 para no saturar la API ni el tiempo de Vercel
+      for (let i = 0; i < archivos.length; i += 3) {
+        const lote = archivos.slice(i, i + 3)
+        const datosLote = await Promise.all(
+          lote.map(async a => {
+            try {
+              const datos = await leerReciboPDF(a.pdfBase64, proveedores)
+              return { nombre: a.nombre, ...datos }
+            } catch {
+              return { nombre: a.nombre, proveedor: '', importe: 0, fecha: '', concepto: 'Error al leer', categoria: 'Otros', proveedorConocido: false }
+            }
+          })
+        )
+        resultados.push(...datosLote)
+      }
+      return res.status(200).json({ ok: true, resultados, totalProveedores: proveedores.length })
+    }
+
     if (req.method === 'POST' && body.action === 'guardar_recibo') {
       const { mes, recibo } = body
       const recibos = await kvGet(`recibos_${mes}`) || []
       recibos.push({ id: Date.now(), ...recibo, creado: new Date().toISOString() })
       await kvSet(`recibos_${mes}`, recibos)
       return res.status(200).json({ ok: true, recibos })
+    }
+
+    if (req.method === 'POST' && body.action === 'guardar_lote') {
+      const { mes, recibos: nuevos } = body
+      const recibos = await kvGet(`recibos_${mes}`) || []
+      const conId = nuevos.map((r, idx) => ({ id: Date.now() + idx, ...r, creado: new Date().toISOString() }))
+      const todos = [...recibos, ...conId]
+      await kvSet(`recibos_${mes}`, todos)
+      return res.status(200).json({ ok: true, recibos: todos })
     }
 
     if (req.method === 'POST' && body.action === 'eliminar_recibo') {
