@@ -84,48 +84,76 @@ function LoginScreen({ onLogin }) {
   )
 }
 
-// ── NUEVA SECCIÓN: Subir recibo PDF con IA ──────────────────────────
+// ── SECCIÓN: Subir recibos PDF con IA (individual o en lote) ──────────────
 function RecibosSection({ data, mes, onReload }) {
   const [leyendo, setLeyendo] = useState(false)
-  const [extraido, setExtraido] = useState(null)
+  const [progreso, setProgreso] = useState('')
+  const [lote, setLote] = useState(null)      // array de recibos extraídos en revisión
   const [guardando, setGuardando] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
 
-  async function handleFile(file) {
-    if (!file || file.type !== 'application/pdf') {
-      setErrorMsg('Por favor sube un archivo PDF')
-      return
-    }
-    setErrorMsg(''); setLeyendo(true); setExtraido(null)
+  const categorias = data.categorias || []
+  const recibos = data.recibos || []
+  const porCat = data.gastosPorCategoria || {}
+
+  function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result.split(',')[1])
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+  }
+
+  async function handleFiles(fileList) {
+    const files = Array.from(fileList).filter(f => f.type === 'application/pdf')
+    if (files.length === 0) { setErrorMsg('Selecciona uno o más archivos PDF'); return }
+    if (files.length > 40) { setErrorMsg('Máximo 40 recibos a la vez'); return }
+
+    setErrorMsg(''); setLeyendo(true); setLote(null)
+    setProgreso(`Preparando ${files.length} recibo${files.length > 1 ? 's' : ''}...`)
+
     try {
-      const base64 = await new Promise((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve(reader.result.split(',')[1])
-        reader.onerror = reject
-        reader.readAsDataURL(file)
-      })
+      const archivos = []
+      for (const f of files) {
+        const pdfBase64 = await fileToBase64(f)
+        archivos.push({ nombre: f.name, pdfBase64 })
+      }
+
+      setProgreso(`Leyendo ${files.length} recibo${files.length > 1 ? 's' : ''} con IA...`)
       const res = await fetch('/api/propietario', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'leer_recibo', pdfBase64: base64 })
+        body: JSON.stringify({ action: 'leer_lote', archivos })
       })
       const d = await res.json()
-      if (d.ok) setExtraido(d.datos)
-      else setErrorMsg('No se pudo leer el PDF')
+      if (d.ok) setLote(d.resultados.map(r => ({ ...r, incluir: true })))
+      else setErrorMsg('No se pudieron leer los recibos')
     } catch {
-      setErrorMsg('Error procesando el archivo')
+      setErrorMsg('Error procesando los archivos')
     } finally {
-      setLeyendo(false)
+      setLeyendo(false); setProgreso('')
     }
   }
 
-  async function confirmar() {
+  function actualizarFila(idx, campo, valor) {
+    setLote(prev => prev.map((r, i) => i === idx ? { ...r, [campo]: valor } : r))
+  }
+
+  async function guardarTodos() {
+    const aGuardar = lote.filter(r => r.incluir).map(r => ({
+      proveedor: r.proveedor, importe: Number(r.importe) || 0,
+      fecha: r.fecha, concepto: r.concepto, categoria: r.categoria,
+      proveedorConocido: r.proveedorConocido
+    }))
+    if (aGuardar.length === 0) { setErrorMsg('No hay recibos marcados para guardar'); return }
+
     setGuardando(true)
     try {
       await fetch('/api/propietario', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'guardar_recibo', mes, recibo: extraido })
+        body: JSON.stringify({ action: 'guardar_lote', mes, recibos: aGuardar })
       })
-      setExtraido(null)
+      setLote(null)
       await onReload()
     } finally {
       setGuardando(false)
@@ -140,63 +168,108 @@ function RecibosSection({ data, mes, onReload }) {
     await onReload()
   }
 
-  const recibos = data.recibos || []
-  const porCat = data.gastosPorCategoria || {}
-  const categorias = data.categorias || []
+  const totalLote = lote ? lote.filter(r => r.incluir).reduce((s, r) => s + (Number(r.importe) || 0), 0) : 0
+  const countLote = lote ? lote.filter(r => r.incluir).length : 0
 
   return (
     <div>
       <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: 300, marginBottom: '0.25rem' }}>Recibos y Gastos</div>
-      <div style={{ fontSize: '0.78rem', color: C.muted, marginBottom: '1.25rem' }}>Sube el PDF de un pago y la IA extrae el importe y lo clasifica</div>
+      <div style={{ fontSize: '0.78rem', color: C.muted, marginBottom: '1.25rem' }}>Sube uno o varios PDF de pagos y la IA los lee y clasifica</div>
 
       {/* Zona de carga */}
-      <div style={{ background: C.white, borderRadius: 12, padding: '1.25rem', marginBottom: '1rem', border: `1px solid ${C.light}` }}>
-        <label style={{
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          border: `2px dashed ${C.light}`, borderRadius: 12, padding: '2rem 1rem',
-          cursor: 'pointer', background: C.bg
-        }}>
-          <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🧾</div>
-          <div style={{ fontSize: '0.85rem', fontWeight: 500, color: C.dark }}>
-            {leyendo ? 'Leyendo recibo con IA...' : 'Subir recibo PDF'}
-          </div>
-          <div style={{ fontSize: '0.7rem', color: C.muted, marginTop: '0.25rem' }}>
-            {leyendo ? 'Un momento por favor' : 'Toca para seleccionar el archivo'}
-          </div>
-          <input type="file" accept="application/pdf" disabled={leyendo}
-            onChange={e => handleFile(e.target.files[0])}
-            style={{ display: 'none' }} />
-        </label>
-        {errorMsg && <div style={{ color: '#e74c3c', fontSize: '0.75rem', marginTop: '0.75rem', textAlign: 'center' }}>{errorMsg}</div>}
-      </div>
+      {!lote && (
+        <div style={{ background: C.white, borderRadius: 12, padding: '1.25rem', marginBottom: '1rem', border: `1px solid ${C.light}` }}>
+          <label style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            border: `2px dashed ${C.light}`, borderRadius: 12, padding: '2rem 1rem',
+            cursor: leyendo ? 'default' : 'pointer', background: C.bg
+          }}>
+            <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🧾</div>
+            <div style={{ fontSize: '0.85rem', fontWeight: 500, color: C.dark }}>
+              {leyendo ? (progreso || 'Leyendo con IA...') : 'Subir recibos PDF'}
+            </div>
+            <div style={{ fontSize: '0.7rem', color: C.muted, marginTop: '0.25rem' }}>
+              {leyendo ? 'Esto puede tardar un poco' : 'Selecciona uno o varios archivos a la vez'}
+            </div>
+            <input type="file" accept="application/pdf" multiple disabled={leyendo}
+              onChange={e => handleFiles(e.target.files)}
+              style={{ display: 'none' }} />
+          </label>
+          {errorMsg && <div style={{ color: '#e74c3c', fontSize: '0.75rem', marginTop: '0.75rem', textAlign: 'center' }}>{errorMsg}</div>}
+        </div>
+      )}
 
-      {/* Datos extraídos para confirmar */}
-      {extraido && (
+      {/* Tabla editable del lote para revisar y confirmar */}
+      {lote && (
         <div style={{ background: C.white, borderRadius: 12, padding: '1.25rem', marginBottom: '1rem', border: `2px solid ${C.primary}` }}>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', marginBottom: '1rem', color: C.primaryDark }}>✓ Revisa y confirma</div>
-
-          <CampoEdit label="Proveedor" value={extraido.proveedor} onChange={v => setExtraido({ ...extraido, proveedor: v })} />
-          <CampoEditNum label="Importe (COP)" value={extraido.importe} onChange={v => setExtraido({ ...extraido, importe: v })} />
-          <CampoEdit label="Fecha" value={extraido.fecha} onChange={v => setExtraido({ ...extraido, fecha: v })} type="date" />
-          <CampoEdit label="Concepto" value={extraido.concepto} onChange={v => setExtraido({ ...extraido, concepto: v })} />
-
-          <label style={{ fontSize: '0.7rem', color: C.muted, display: 'block', marginBottom: '0.25rem', marginTop: '0.75rem' }}>Categoría</label>
-          <select value={extraido.categoria} onChange={e => setExtraido({ ...extraido, categoria: e.target.value })}
-            style={{ width: '100%', padding: '0.6rem 0.75rem', border: `1px solid ${C.light}`, borderRadius: 8, fontSize: '0.88rem', fontFamily: 'var(--font-body)', background: C.white, marginBottom: '1rem' }}>
-            {categorias.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button onClick={() => setExtraido(null)} style={{ flex: 1, background: C.bg, color: C.muted, border: `1px solid ${C.light}`, borderRadius: 10, padding: '0.75rem', fontSize: '0.82rem', cursor: 'pointer' }}>Cancelar</button>
-            <button onClick={confirmar} disabled={guardando} style={{ flex: 2, background: C.dark, color: 'white', border: 'none', borderRadius: 10, padding: '0.75rem', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer' }}>
-              {guardando ? 'Guardando...' : '✓ Confirmar y sumar al mes'}
-            </button>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', color: C.primaryDark }}>✓ Revisa y corrige ({lote.length})</div>
+            <button onClick={() => { setLote(null); setErrorMsg('') }} style={{ background: 'none', border: 'none', color: C.muted, fontSize: '0.72rem', cursor: 'pointer' }}>Cancelar todo</button>
           </div>
+
+          {lote.map((r, idx) => (
+            <div key={idx} style={{
+              border: `1px solid ${r.incluir ? C.light : '#eee'}`, borderRadius: 10, padding: '0.85rem',
+              marginBottom: '0.75rem', background: r.incluir ? C.white : '#f7f7f7', opacity: r.incluir ? 1 : 0.6
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <input type="checkbox" checked={r.incluir} onChange={e => actualizarFila(idx, 'incluir', e.target.checked)} style={{ width: 16, height: 16, cursor: 'pointer' }} />
+                  <span style={{ fontSize: '0.62rem', color: C.muted, maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📄 {r.nombre}</span>
+                </div>
+                {r.proveedorConocido && <span style={{ fontSize: '0.58rem', background: `${C.primary}33`, color: C.primaryDark, padding: '0.1rem 0.45rem', borderRadius: 8 }}>✓ conocido</span>}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                <div>
+                  <label style={{ fontSize: '0.62rem', color: C.muted, display: 'block', marginBottom: '0.15rem' }}>Proveedor</label>
+                  <input value={r.proveedor || ''} onChange={e => actualizarFila(idx, 'proveedor', e.target.value)}
+                    style={{ width: '100%', padding: '0.45rem 0.55rem', border: `1px solid ${C.light}`, borderRadius: 7, fontSize: '0.8rem', fontFamily: 'var(--font-body)', outline: 'none', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.62rem', color: C.muted, display: 'block', marginBottom: '0.15rem' }}>Importe (COP)</label>
+                  <input type="number" value={r.importe || ''} onChange={e => actualizarFila(idx, 'importe', Number(e.target.value))}
+                    style={{ width: '100%', padding: '0.45rem 0.55rem', border: `1px solid ${C.light}`, borderRadius: 7, fontSize: '0.8rem', fontFamily: 'var(--font-body)', outline: 'none', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.62rem', color: C.muted, display: 'block', marginBottom: '0.15rem' }}>Fecha</label>
+                  <input type="date" value={r.fecha || ''} onChange={e => actualizarFila(idx, 'fecha', e.target.value)}
+                    style={{ width: '100%', padding: '0.45rem 0.55rem', border: `1px solid ${C.light}`, borderRadius: 7, fontSize: '0.8rem', fontFamily: 'var(--font-body)', outline: 'none', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.62rem', color: C.muted, display: 'block', marginBottom: '0.15rem' }}>Categoría</label>
+                  <select value={r.categoria} onChange={e => actualizarFila(idx, 'categoria', e.target.value)}
+                    style={{ width: '100%', padding: '0.45rem 0.55rem', border: `1px solid ${C.light}`, borderRadius: 7, fontSize: '0.8rem', fontFamily: 'var(--font-body)', background: C.white, outline: 'none', boxSizing: 'border-box' }}>
+                    {categorias.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div style={{ marginTop: '0.5rem' }}>
+                <label style={{ fontSize: '0.62rem', color: C.muted, display: 'block', marginBottom: '0.15rem' }}>Concepto</label>
+                <input value={r.concepto || ''} onChange={e => actualizarFila(idx, 'concepto', e.target.value)}
+                  style={{ width: '100%', padding: '0.45rem 0.55rem', border: `1px solid ${C.light}`, borderRadius: 7, fontSize: '0.8rem', fontFamily: 'var(--font-body)', outline: 'none', boxSizing: 'border-box' }} />
+              </div>
+            </div>
+          ))}
+
+          <div style={{ borderTop: `2px solid ${C.dark}`, paddingTop: '0.75rem', marginTop: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.85rem' }}>Total a sumar ({countLote})</span>
+            <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', fontWeight: 600, color: '#e67e22' }}>{fmtCOP(totalLote)}</span>
+          </div>
+
+          {errorMsg && <div style={{ color: '#e74c3c', fontSize: '0.75rem', marginBottom: '0.75rem', textAlign: 'center' }}>{errorMsg}</div>}
+
+          <button onClick={guardarTodos} disabled={guardando} style={{
+            width: '100%', background: C.dark, color: 'white', border: 'none', borderRadius: 10,
+            padding: '0.85rem', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-body)'
+          }}>
+            {guardando ? 'Guardando...' : `✓ Confirmar y sumar ${countLote} recibo${countLote !== 1 ? 's' : ''} al mes`}
+          </button>
         </div>
       )}
 
       {/* Gastos por categoría */}
-      {data.totalRecibos > 0 && (
+      {data.totalRecibos > 0 && !lote && (
         <div style={{ background: C.white, borderRadius: 12, padding: '1.25rem', marginBottom: '1rem', border: `1px solid ${C.light}` }}>
           <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', marginBottom: '1rem' }}>Gastos por categoría</div>
           {categorias.filter(c => porCat[c] > 0).sort((a, b) => porCat[b] - porCat[a]).map(cat => {
@@ -221,7 +294,7 @@ function RecibosSection({ data, mes, onReload }) {
       )}
 
       {/* Lista de recibos */}
-      {recibos.length > 0 && (
+      {recibos.length > 0 && !lote && (
         <div style={{ background: C.white, borderRadius: 12, padding: '1.25rem', border: `1px solid ${C.light}` }}>
           <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', marginBottom: '0.75rem' }}>Recibos del mes ({recibos.length})</div>
           {recibos.map((r, i) => (
@@ -239,28 +312,6 @@ function RecibosSection({ data, mes, onReload }) {
           ))}
         </div>
       )}
-    </div>
-  )
-}
-
-function CampoEdit({ label, value, onChange, type = 'text' }) {
-  return (
-    <div style={{ marginBottom: '0.6rem' }}>
-      <label style={{ fontSize: '0.7rem', color: C.muted, display: 'block', marginBottom: '0.25rem' }}>{label}</label>
-      <input type={type} value={value || ''} onChange={e => onChange(e.target.value)}
-        style={{ width: '100%', padding: '0.6rem 0.75rem', border: `1px solid ${C.light}`, borderRadius: 8, fontSize: '0.85rem', fontFamily: 'var(--font-body)', outline: 'none' }} />
-    </div>
-  )
-}
-function CampoEditNum({ label, value, onChange }) {
-  return (
-    <div style={{ marginBottom: '0.6rem' }}>
-      <label style={{ fontSize: '0.7rem', color: C.muted, display: 'block', marginBottom: '0.25rem' }}>{label}</label>
-      <div style={{ display: 'flex', alignItems: 'center', border: `1px solid ${C.light}`, borderRadius: 8, overflow: 'hidden' }}>
-        <span style={{ padding: '0.6rem 0.6rem', fontSize: '0.78rem', color: C.muted, borderRight: `1px solid ${C.light}`, background: C.bg }}>COP</span>
-        <input type="number" value={value || ''} onChange={e => onChange(Number(e.target.value))}
-          style={{ flex: 1, padding: '0.6rem 0.75rem', border: 'none', outline: 'none', fontSize: '0.88rem', fontFamily: 'var(--font-body)' }} />
-      </div>
     </div>
   )
 }
