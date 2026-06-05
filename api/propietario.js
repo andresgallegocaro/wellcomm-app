@@ -140,7 +140,6 @@ Si solo ves un nombre en un comprobante bancario, cruza con la base primero. Imp
   catch { return { proveedor: '', importe: 0, fecha: '', concepto: 'No se pudo leer', categoria: 'Otros', proveedorConocido: false } }
 }
 
-// Traer TODAS las reservas que se solapan con el mes (paginación completa)
 async function getReservasDelMes(headers, inicio, fin) {
   let todas = []
   let pageNumber = 1
@@ -157,7 +156,6 @@ async function getReservasDelMes(headers, inicio, fin) {
   return todas
 }
 
-// Traer detalle de reservas EN LOTES para no saturar Cloudbeds (evita rate limit)
 async function traerDetallesEnLotes(reservas, headers, tamLote = 15, pausaMs = 250) {
   const resultados = []
   for (let i = 0; i < reservas.length; i += tamLote) {
@@ -176,7 +174,6 @@ async function traerDetallesEnLotes(reservas, headers, tamLote = 15, pausaMs = 2
   return resultados
 }
 
-// MOTOR DE REVENUE: cuenta noche por noche, en lotes, todas las reservas
 async function getCloudbedsData(mes) {
   const token = await getFreshToken()
   const headers = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
@@ -221,7 +218,6 @@ async function getCloudbedsData(mes) {
     const ocupacion = totalNochesDisp > 0 ? Math.round((nochesMes / totalNochesDisp) * 100) : 0
     const revpar = totalNochesDisp > 0 ? Math.round(ingresosMes / totalNochesDisp) : 0
 
-    // En casa AHORA
     const enCasaRes = await fetch(`https://api.cloudbeds.com/api/v1.1/getReservations?status=checked_in&pageSize=25`, { headers })
     const enCasaLista = normalizar(await enCasaRes.json())
     const detallesEnCasa = await traerDetallesEnLotes(enCasaLista, headers)
@@ -273,9 +269,8 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST' && body.action === 'leer_lote') {
       const proveedores = await getProveedores()
-      const archivos = body.archivos || [] // [{ nombre, pdfBase64 }]
+      const archivos = body.archivos || []
       const resultados = []
-      // Procesar en lotes de 3 para no saturar la API ni el tiempo de Vercel
       for (let i = 0; i < archivos.length; i += 3) {
         const lote = archivos.slice(i, i + 3)
         const datosLote = await Promise.all(
@@ -308,6 +303,18 @@ export default async function handler(req, res) {
       const todos = [...recibos, ...conId]
       await kvSet(`recibos_${mes}`, todos)
       return res.status(200).json({ ok: true, recibos: todos })
+    }
+
+    if (req.method === 'POST' && body.action === 'editar_recibo') {
+      const { mes, id, cambios } = body
+      const recibos = await kvGet(`recibos_${mes}`) || []
+      const actualizados = recibos.map(r =>
+        r.id === id
+          ? { ...r, ...cambios, importe: Number(cambios.importe) || 0, editado: new Date().toISOString() }
+          : r
+      )
+      await kvSet(`recibos_${mes}`, actualizados)
+      return res.status(200).json({ ok: true, recibos: actualizados })
     }
 
     if (req.method === 'POST' && body.action === 'eliminar_recibo') {
