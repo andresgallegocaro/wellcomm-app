@@ -11,6 +11,7 @@ import OwnerPortal from './OwnerPortal.jsx'
 import RateIntelligence from './RateIntelligence.jsx'
 import RevenueManager from './RevenueManager.jsx'
 import AdminUsuarios from './AdminUsuarios.jsx'
+import Mantenimiento from './Mantenimiento.jsx'
 
 const SCREENS = {
   HOME: 'home', GUEST: 'guest', STAFF: 'staff',
@@ -18,6 +19,7 @@ const SCREENS = {
   STAFF_NOVEDADES: 'staff_novedades', STAFF_HABITACIONES: 'staff_habitaciones',
   STAFF_SOLICITUDES: 'staff_solicitudes', STAFF_CHECKLIST: 'staff_checklist',
   STAFF_RATES: 'staff_rates', STAFF_REVENUE: 'staff_revenue',
+  STAFF_MANTENIMIENTO: 'staff_mantenimiento',
   OWNER: 'owner', ADMIN: 'admin',
 }
 
@@ -28,7 +30,7 @@ const C = {
 
 export default function App() {
   const [screen, setScreen] = useState(SCREENS.HOME)
-  const [sesion, setSesion] = useState(null) // { usuario, acceso, adminPin }
+  const [sesion, setSesion] = useState(null)
   const go = s => () => setScreen(s)
 
   if (!sesion) return <LoginUnico onLogin={(s) => { setSesion(s); setScreen(SCREENS.HOME) }} />
@@ -44,11 +46,12 @@ export default function App() {
   if (screen === SCREENS.OWNER && puede('propietario')) return <OwnerPortal onBack={go(SCREENS.HOME)} />
   if (screen === SCREENS.ADMIN && puede('admin')) return <AdminUsuarios adminPin={sesion.adminPin} onBack={go(SCREENS.HOME)} />
 
-  if (screen === SCREENS.STAFF && puede('operacion')) return <StaffConcierge onBack={go(SCREENS.HOME)} onDashboard={go(SCREENS.STAFF_DASHBOARD)} onBriefing={go(SCREENS.STAFF_BRIEFING)} onNovedades={go(SCREENS.STAFF_NOVEDADES)} onHabitaciones={go(SCREENS.STAFF_HABITACIONES)} onSolicitudes={go(SCREENS.STAFF_SOLICITUDES)} onChecklist={go(SCREENS.STAFF_CHECKLIST)} onRates={go(SCREENS.STAFF_RATES)} onRevenue={go(SCREENS.STAFF_REVENUE)} />
+  if (screen === SCREENS.STAFF && puede('operacion')) return <StaffConcierge onBack={go(SCREENS.HOME)} onDashboard={go(SCREENS.STAFF_DASHBOARD)} onBriefing={go(SCREENS.STAFF_BRIEFING)} onNovedades={go(SCREENS.STAFF_NOVEDADES)} onHabitaciones={go(SCREENS.STAFF_HABITACIONES)} onSolicitudes={go(SCREENS.STAFF_SOLICITUDES)} onChecklist={go(SCREENS.STAFF_CHECKLIST)} onRates={go(SCREENS.STAFF_RATES)} onRevenue={go(SCREENS.STAFF_REVENUE)} onMantenimiento={go(SCREENS.STAFF_MANTENIMIENTO)} />
   if (screen === SCREENS.STAFF_DASHBOARD) return <Dashboard onBack={go(SCREENS.STAFF)} />
   if (screen === SCREENS.STAFF_BRIEFING) return <Briefing onBack={go(SCREENS.STAFF)} />
   if (screen === SCREENS.STAFF_NOVEDADES) return <Novedades onBack={go(SCREENS.STAFF)} />
   if (screen === SCREENS.STAFF_HABITACIONES) return <Habitaciones onBack={go(SCREENS.STAFF)} usuario={nombreUsuario} puedeAuditar={puedeAuditar} />
+  if (screen === SCREENS.STAFF_MANTENIMIENTO) return <Mantenimiento onBack={go(SCREENS.STAFF)} usuario={nombreUsuario} puedePriorizar={puedeAuditar} />
   if (screen === SCREENS.STAFF_SOLICITUDES) return <Solicitudes onBack={go(SCREENS.STAFF)} />
   if (screen === SCREENS.STAFF_CHECKLIST) return <Checklist onBack={go(SCREENS.STAFF)} />
   if (screen === SCREENS.STAFF_RATES && puede('revenue')) return <RateIntelligence onBack={go(SCREENS.STAFF)} />
@@ -120,7 +123,7 @@ function LoginUnico({ onLogin }) {
           cursor: pin.length >= 4 ? 'pointer' : 'default', fontFamily: 'var(--font-body)'
         }}>{loading ? 'Verificando...' : 'Acceder →'}</button>
       </div>
-      <div style={{ fontSize: '0.68rem', color: C.muted, letterSpacing: '0.1em', marginTop: '2rem' }}>v2.4.0 · Gestionado por SOLARA Homes</div>
+      <div style={{ fontSize: '0.68rem', color: C.muted, letterSpacing: '0.1em', marginTop: '2rem' }}>v2.5.0 · Gestionado por SOLARA Homes</div>
     </div>
   )
 }
@@ -143,7 +146,7 @@ function HomeScreen({ sesion, puede, onSelect, onLogout }) {
           <MenuCard emoji="🛎️" title="Modo huésped" subtitle="Check-in · Concierge · Servicios · Explorar" light={false} color="var(--color-primary)" onClick={() => onSelect(SCREENS.GUEST)} />
         )}
         {puede('operacion') && (
-          <MenuCard emoji="👥" title="Equipo" subtitle="Concierge · Dashboard · Revenue · Briefing · Habitaciones" light color="var(--color-text)" onClick={() => onSelect(SCREENS.STAFF)} />
+          <MenuCard emoji="👥" title="Equipo" subtitle="Concierge · Dashboard · Habitaciones · Mantenimiento" light color="var(--color-text)" onClick={() => onSelect(SCREENS.STAFF)} />
         )}
         {puede('propietario') && (
           <MenuCard emoji="📊" title="Portal del Propietario" subtitle="Revenue · Gastos · Liquidación · KPIs en tiempo real" light color="#2c3e50" onClick={() => onSelect(SCREENS.OWNER)} />
@@ -155,7 +158,7 @@ function HomeScreen({ sesion, puede, onSelect, onLogout }) {
 
       <button onClick={onLogout} style={{ background: 'none', border: '1px solid var(--color-text-light)', borderRadius: 10, color: 'var(--color-text-light)', padding: '0.5rem 1.2rem', cursor: 'pointer', fontSize: '0.78rem', fontFamily: 'var(--font-body)' }}>Cerrar sesión</button>
 
-      <div style={{ fontSize: '0.7rem', color: 'var(--color-text-light)', letterSpacing: '0.1em' }}>v2.4.0 · Gestionado por SOLARA Homes</div>
+      <div style={{ fontSize: '0.7rem', color: 'var(--color-text-light)', letterSpacing: '0.1em' }}>v2.5.0 · Gestionado por SOLARA Homes</div>
     </div>
   )
 }
