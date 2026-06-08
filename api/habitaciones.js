@@ -98,23 +98,20 @@ async function traerDetallesEnLotes(reservas, headers, tamLote = 15, pausaMs = 2
   return resultados
 }
 
-// Extrae el número de habitación de un roomName tipo "SE 306" → "306"
 function extraerNumero(roomName) {
   if (!roomName) return null
   const m = String(roomName).match(/(\d{3})/)
   return m ? m[1] : null
 }
 
-// Lee Cloudbeds y devuelve el "movimiento del día" por habitación
 async function getMovimientosCloudbeds() {
   const token = await getFreshToken()
   const headers = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
   const hoy = new Date().toISOString().slice(0, 10)
 
-  const movimientos = {} // { '306': 'ocupada' | 'sale_hoy' | 'llega_hoy' }
+  const movimientos = {}
 
   try {
-    // 1. Ocupadas ahora (checked_in)
     const enCasaRes = await fetch(`https://api.cloudbeds.com/api/v1.1/getReservations?status=checked_in&pageSize=40`, { headers })
     const enCasa = normalizar(await enCasaRes.json())
     const detallesEnCasa = await traerDetallesEnLotes(enCasa, headers)
@@ -128,7 +125,6 @@ async function getMovimientosCloudbeds() {
       })
     })
 
-    // 2. Llegadas hoy (confirmed con check-in hoy)
     const llegadasRes = await fetch(`https://api.cloudbeds.com/api/v1.1/getReservations?status=confirmed&checkInFrom=${hoy}&checkInTo=${hoy}&pageSize=40`, { headers })
     const llegadas = normalizar(await llegadasRes.json())
     const detallesLlegadas = await traerDetallesEnLotes(llegadas, headers)
@@ -137,7 +133,6 @@ async function getMovimientosCloudbeds() {
       if (!d) return
       ;(d.assigned || []).forEach(a => {
         const num = extraerNumero(a.roomName)
-        // Solo marcar llega_hoy si no está ya ocupada
         if (num && !movimientos[num]) movimientos[num] = 'llega_hoy'
       })
     })
@@ -146,6 +141,13 @@ async function getMovimientosCloudbeds() {
   } catch (e) {
     return movimientos
   }
+}
+
+function ahoraColombia() {
+  // Hora local de Colombia (UTC-5)
+  const now = new Date(Date.now() - 5 * 3600000)
+  const hora = now.toISOString().slice(11, 16) // HH:MM
+  return hora
 }
 
 export default async function handler(req, res) {
@@ -158,19 +160,36 @@ export default async function handler(req, res) {
 
     const hoy = new Date().toISOString().slice(0, 10)
 
-    // ── POST: actualizar estado manual de una habitación ──
+    // ── POST: actualizar estado manual + registrar quién y cuándo ──
     if (req.method === 'POST') {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body
-      const { habitacionId, estado } = body
 
+      // Subaccion: pedir el historial de una habitación
+      if (body.action === 'historial') {
+        const historiales = await kvGet('habitaciones_historial') || {}
+        return res.status(200).json({ ok: true, historial: historiales[body.habitacionId] || [] })
+      }
+
+      const { habitacionId, estado, usuario } = body
+      const autor = usuario || 'Desconocido'
+      const hora = ahoraColombia()
+
+      // Guardar estado actual
       const estados = await kvGet('habitaciones_estados') || {}
-      estados[habitacionId] = { estado, fecha: hoy, manual: true, actualizado: new Date().toISOString() }
+      estados[habitacionId] = { estado, fecha: hoy, manual: true, autor, hora, actualizado: new Date().toISOString() }
       await kvSet('habitaciones_estados', estados)
+
+      // Agregar al historial (guardamos los últimos 50 por habitación)
+      const historiales = await kvGet('habitaciones_historial') || {}
+      const histHab = historiales[habitacionId] || []
+      histHab.unshift({ estado, autor, hora, fecha: hoy, ts: new Date().toISOString() })
+      historiales[habitacionId] = histHab.slice(0, 50)
+      await kvSet('habitaciones_historial', historiales)
 
       return res.status(200).json({ ok: true })
     }
 
-    // ── GET: devolver las 25 habitaciones con su estado + movimiento ──
+    // ── GET: devolver las 25 habitaciones con estado + movimiento + autor ──
     const [estadosGuardados, movimientos] = await Promise.all([
       kvGet('habitaciones_estados'),
       getMovimientosCloudbeds()
@@ -182,18 +201,17 @@ export default async function handler(req, res) {
       const guardado = estados[h.id]
       const movimiento = movimientos[h.id] || 'libre'
 
-      // El estatus de limpieza: si hay uno manual de HOY, respétalo.
-      // Si no, el estatus por defecto depende del movimiento.
-      let estado
+      let estado, autor = null, hora = null
       if (guardado && guardado.fecha === hoy && guardado.manual) {
-        estado = guardado.estado // respeta lo que marcó el equipo hoy
+        estado = guardado.estado
+        autor = guardado.autor || null
+        hora = guardado.hora || null
       } else {
-        // Estado inicial automático del día
         if (movimiento === 'ocupada' || movimiento === 'sale_hoy') estado = 'ocupada'
-        else estado = 'limpia' // libre o llega_hoy → asumimos limpia hasta que digan lo contrario
+        else estado = 'limpia'
       }
 
-      return { ...h, estado, movimiento }
+      return { ...h, estado, movimiento, autor, hora }
     })
 
     return res.status(200).json({ habitaciones, fecha: hoy })
