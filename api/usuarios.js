@@ -6,7 +6,8 @@ const ADMIN_PIN = '1450'
 
 // Niveles de acceso disponibles
 const NIVELES = {
-  direccion: { label: 'Dirección', acceso: ['dashboard', 'revenue', 'propietario', 'operacion', 'admin'] },
+  direccion: { label: 'Dirección', acceso: ['dashboard', 'revenue', 'propietario', 'operacion', 'admin', 'auditoria'] },
+  lider: { label: 'Líder', acceso: ['operacion', 'auditoria'] },
   propietario: { label: 'Propietario', acceso: ['propietario'] },
   staff: { label: 'Staff', acceso: ['operacion'] },
 }
@@ -94,7 +95,6 @@ export default async function handler(req, res) {
       if (!nombre || !pin || !nivel) return res.status(400).json({ error: 'Faltan datos' })
 
       const usuarios = await getUsuarios()
-      // No permitir PIN duplicado ni el PIN admin
       if (pin === ADMIN_PIN || usuarios.some(u => u.pin === pin)) {
         return res.status(400).json({ error: 'Ese PIN ya está en uso' })
       }
@@ -108,7 +108,6 @@ export default async function handler(req, res) {
       if (String(body.adminPin) !== ADMIN_PIN) return res.status(403).json({ error: 'No autorizado' })
       const { id, cambios } = body
       const usuarios = await getUsuarios()
-      // Si cambia el PIN, validar que no choque
       if (cambios.pin) {
         if (cambios.pin === ADMIN_PIN || usuarios.some(u => u.pin === cambios.pin && u.id !== id)) {
           return res.status(400).json({ error: 'Ese PIN ya está en uso' })
