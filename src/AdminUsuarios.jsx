@@ -7,8 +7,9 @@ const C = {
 
 const NIVEL_INFO = {
   direccion: { label: 'Dirección', color: '#3498db', desc: 'Acceso total' },
+  lider: { label: 'Líder', color: '#16a085', desc: 'Operación + auditoría' },
   propietario: { label: 'Propietario', color: '#9b59b6', desc: 'Solo finanzas' },
-  staff: { label: 'Staff', color: '#16a085', desc: 'Solo operación' },
+  staff: { label: 'Staff', color: '#e67e22', desc: 'Solo operación' },
 }
 
 export default function AdminUsuarios({ adminPin, onBack }) {
@@ -99,10 +100,10 @@ export default function AdminUsuarios({ adminPin, onBack }) {
             style={{ width: '100%', padding: '0.6rem 0.75rem', border: `1px solid ${C.light}`, borderRadius: 8, fontSize: '0.88rem', fontFamily: 'var(--font-body)', outline: 'none', boxSizing: 'border-box', marginBottom: '0.75rem' }} />
 
           <label style={{ fontSize: '0.7rem', color: C.muted, display: 'block', marginBottom: '0.25rem' }}>Nivel de acceso</label>
-          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '1rem' }}>
             {Object.entries(NIVEL_INFO).map(([key, info]) => (
               <button key={key} onClick={() => setForm({ ...form, nivel: key })} style={{
-                flex: 1, padding: '0.6rem 0.4rem', borderRadius: 8, cursor: 'pointer',
+                padding: '0.6rem 0.4rem', borderRadius: 8, cursor: 'pointer',
                 border: form.nivel === key ? `2px solid ${info.color}` : `1px solid ${C.light}`,
                 background: form.nivel === key ? `${info.color}15` : C.white,
                 fontFamily: 'var(--font-body)'
@@ -140,10 +141,10 @@ export default function AdminUsuarios({ adminPin, onBack }) {
                   style={{ width: '100%', padding: '0.5rem', border: `1px solid ${C.light}`, borderRadius: 7, fontSize: '0.82rem', marginBottom: '0.5rem', boxSizing: 'border-box', fontFamily: 'var(--font-body)' }} />
                 <input type="text" inputMode="numeric" value={editForm.pin} onChange={e => setEditForm({ ...editForm, pin: e.target.value.replace(/\D/g, '').slice(0, 6) })}
                   style={{ width: '100%', padding: '0.5rem', border: `1px solid ${C.light}`, borderRadius: 7, fontSize: '0.82rem', marginBottom: '0.5rem', boxSizing: 'border-box', fontFamily: 'var(--font-body)' }} />
-                <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.5rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem', marginBottom: '0.5rem' }}>
                   {Object.entries(NIVEL_INFO).map(([key, info]) => (
                     <button key={key} onClick={() => setEditForm({ ...editForm, nivel: key })} style={{
-                      flex: 1, padding: '0.4rem', borderRadius: 7, cursor: 'pointer', fontSize: '0.7rem', fontWeight: 600,
+                      padding: '0.4rem', borderRadius: 7, cursor: 'pointer', fontSize: '0.7rem', fontWeight: 600,
                       border: editForm.nivel === key ? `2px solid ${info.color}` : `1px solid ${C.light}`,
                       background: editForm.nivel === key ? `${info.color}15` : C.white, color: info.color, fontFamily: 'var(--font-body)'
                     }}>{info.label}</button>
