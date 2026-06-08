@@ -31,15 +31,15 @@ export default function App() {
   const [sesion, setSesion] = useState(null) // { usuario, acceso, adminPin }
   const go = s => () => setScreen(s)
 
-  // Si no hay sesión, mostrar login
   if (!sesion) return <LoginUnico onLogin={(s) => { setSesion(s); setScreen(SCREENS.HOME) }} />
 
   const acceso = sesion.acceso || []
   const puede = (zona) => acceso.includes(zona)
+  const puedeAuditar = puede('auditoria')
+  const nombreUsuario = sesion.usuario?.nombre || 'Desconocido'
 
   function logout() { setSesion(null); setScreen(SCREENS.HOME) }
 
-  // Pantallas (con control de acceso)
   if (screen === SCREENS.GUEST) return <GuestApp onBack={go(SCREENS.HOME)} />
   if (screen === SCREENS.OWNER && puede('propietario')) return <OwnerPortal onBack={go(SCREENS.HOME)} />
   if (screen === SCREENS.ADMIN && puede('admin')) return <AdminUsuarios adminPin={sesion.adminPin} onBack={go(SCREENS.HOME)} />
@@ -48,7 +48,7 @@ export default function App() {
   if (screen === SCREENS.STAFF_DASHBOARD) return <Dashboard onBack={go(SCREENS.STAFF)} />
   if (screen === SCREENS.STAFF_BRIEFING) return <Briefing onBack={go(SCREENS.STAFF)} />
   if (screen === SCREENS.STAFF_NOVEDADES) return <Novedades onBack={go(SCREENS.STAFF)} />
-  if (screen === SCREENS.STAFF_HABITACIONES) return <Habitaciones onBack={go(SCREENS.STAFF)} />
+  if (screen === SCREENS.STAFF_HABITACIONES) return <Habitaciones onBack={go(SCREENS.STAFF)} usuario={nombreUsuario} puedeAuditar={puedeAuditar} />
   if (screen === SCREENS.STAFF_SOLICITUDES) return <Solicitudes onBack={go(SCREENS.STAFF)} />
   if (screen === SCREENS.STAFF_CHECKLIST) return <Checklist onBack={go(SCREENS.STAFF)} />
   if (screen === SCREENS.STAFF_RATES && puede('revenue')) return <RateIntelligence onBack={go(SCREENS.STAFF)} />
@@ -57,7 +57,6 @@ export default function App() {
   return <HomeScreen sesion={sesion} puede={puede} onSelect={setScreen} onLogout={logout} />
 }
 
-// ── LOGIN ÚNICO CON PIN ──────────────────────────────────────────────
 function LoginUnico({ onLogin }) {
   const [pin, setPin] = useState('')
   const [error, setError] = useState('')
@@ -84,8 +83,7 @@ function LoginUnico({ onLogin }) {
   function tecla(n) {
     if (n === '⌫') { setPin(p => p.slice(0, -1)); setError(''); return }
     if (n === '' || pin.length >= 6) return
-    const nuevo = pin + n
-    setPin(nuevo)
+    setPin(pin + n)
   }
 
   return (
@@ -122,12 +120,11 @@ function LoginUnico({ onLogin }) {
           cursor: pin.length >= 4 ? 'pointer' : 'default', fontFamily: 'var(--font-body)'
         }}>{loading ? 'Verificando...' : 'Acceder →'}</button>
       </div>
-      <div style={{ fontSize: '0.68rem', color: C.muted, letterSpacing: '0.1em', marginTop: '2rem' }}>v2.3.0 · Gestionado por SOLARA Homes</div>
+      <div style={{ fontSize: '0.68rem', color: C.muted, letterSpacing: '0.1em', marginTop: '2rem' }}>v2.4.0 · Gestionado por SOLARA Homes</div>
     </div>
   )
 }
 
-// ── HOME (muestra solo lo permitido según el nivel) ──────────────────
 function HomeScreen({ sesion, puede, onSelect, onLogout }) {
   const u = sesion.usuario
   return (
@@ -142,7 +139,6 @@ function HomeScreen({ sesion, puede, onSelect, onLogout }) {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%', maxWidth: 360 }}>
-        {/* Huésped: siempre visible para dirección, oculto para staff/propietario salvo dirección */}
         {puede('operacion') && (
           <MenuCard emoji="🛎️" title="Modo huésped" subtitle="Check-in · Concierge · Servicios · Explorar" light={false} color="var(--color-primary)" onClick={() => onSelect(SCREENS.GUEST)} />
         )}
@@ -159,7 +155,7 @@ function HomeScreen({ sesion, puede, onSelect, onLogout }) {
 
       <button onClick={onLogout} style={{ background: 'none', border: '1px solid var(--color-text-light)', borderRadius: 10, color: 'var(--color-text-light)', padding: '0.5rem 1.2rem', cursor: 'pointer', fontSize: '0.78rem', fontFamily: 'var(--font-body)' }}>Cerrar sesión</button>
 
-      <div style={{ fontSize: '0.7rem', color: 'var(--color-text-light)', letterSpacing: '0.1em' }}>v2.3.0 · Gestionado por SOLARA Homes</div>
+      <div style={{ fontSize: '0.7rem', color: 'var(--color-text-light)', letterSpacing: '0.1em' }}>v2.4.0 · Gestionado por SOLARA Homes</div>
     </div>
   )
 }
