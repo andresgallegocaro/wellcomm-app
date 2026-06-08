@@ -4,10 +4,18 @@ const ESTADOS = [
   { id: 'limpia', label: 'Limpia', color: '#7EC8A0', bg: '#E8F5EE', emoji: '✅' },
   { id: 'ocupada', label: 'Ocupada', color: '#e74c3c', bg: '#FFF0F0', emoji: '🔴' },
   { id: 'sucia', label: 'Sucia', color: '#e67e22', bg: '#FFF8F0', emoji: '🟡' },
-  { id: 'checkout', label: 'Check-out hoy', color: '#3498db', bg: '#F0F8FF', emoji: '🔵' },
+  { id: 'checkout', label: 'Check-out', color: '#3498db', bg: '#F0F8FF', emoji: '🔵' },
   { id: 'mantenimiento', label: 'Mantenimiento', color: '#95a5a6', bg: '#F5F5F5', emoji: '⚫' },
   { id: 'bloqueada', label: 'Bloqueada', color: '#8e44ad', bg: '#F8F0FF', emoji: '🔒' },
 ]
+
+// Etiquetas de movimiento del día (vienen de Cloudbeds)
+const MOVIMIENTOS = {
+  sale_hoy: { label: 'Sale hoy', color: '#e74c3c', emoji: '🧳' },
+  ocupada: { label: 'Ocupada', color: '#c0392b', emoji: '👤' },
+  llega_hoy: { label: 'Llega hoy', color: '#2980b9', emoji: '🛬' },
+  libre: { label: 'Libre', color: '#95a5a6', emoji: '·' },
+}
 
 export default function Habitaciones({ onBack }) {
   const [habitaciones, setHabitaciones] = useState([])
@@ -55,6 +63,10 @@ export default function Habitaciones({ onBack }) {
 
   const getEstado = (id) => ESTADOS.find(e => e.id === id) || ESTADOS[0]
 
+  // Contador de movimientos del día
+  const salenHoy = habitaciones.filter(h => h.movimiento === 'sale_hoy').length
+  const lleganHoy = habitaciones.filter(h => h.movimiento === 'llega_hoy').length
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--color-bg)', display: 'flex', flexDirection: 'column' }}>
 
@@ -64,9 +76,9 @@ export default function Habitaciones({ onBack }) {
           <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'white', fontSize: '1.2rem', cursor: 'pointer' }}>←</button>
           <div>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', letterSpacing: '0.05em' }}>Estado de Habitaciones</div>
-            <div style={{ fontSize: '0.7rem', opacity: 0.6 }}>WELLCOMM · 25 habitaciones</div>
+            <div style={{ fontSize: '0.7rem', opacity: 0.6 }}>WELLCOMM · 25 habitaciones · 🧳 {salenHoy} salen · 🛬 {lleganHoy} llegan</div>
           </div>
-          <button onClick={cargar} style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '20px', color: 'white', fontSize: '0.72rem', padding: '0.4rem 0.75rem', cursor: 'pointer' }}>↻ Actualizar</button>
+          <button onClick={cargar} style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '20px', color: 'white', fontSize: '0.72rem', padding: '0.4rem 0.75rem', cursor: 'pointer' }}>↻ Cloudbeds</button>
         </div>
 
         {/* Resumen rápido */}
@@ -85,10 +97,10 @@ export default function Habitaciones({ onBack }) {
       {/* Grid habitaciones */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem' }}>
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--color-text-light)', fontFamily: 'var(--font-display)' }}>Cargando habitaciones...</div>
+          <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--color-text-light)', fontFamily: 'var(--font-display)' }}>Leyendo Cloudbeds...</div>
         ) : (
           <>
-            {['3', '4', '5', '6', '7'].map(piso => {
+            {['3', '4', '5', '6'].map(piso => {
               const habsPiso = filtradas.filter(h => h.piso === parseInt(piso))
               if (habsPiso.length === 0) return null
               return (
@@ -96,22 +108,29 @@ export default function Habitaciones({ onBack }) {
                   <div style={{ fontSize: '0.72rem', color: 'var(--color-text-light)', letterSpacing: '0.1em', marginBottom: '0.5rem' }}>
                     PISO {piso}
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '0.5rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(105px, 1fr))', gap: '0.5rem' }}>
                     {habsPiso.map(hab => {
                       const estado = getEstado(hab.estado)
+                      const mov = MOVIMIENTOS[hab.movimiento] || MOVIMIENTOS.libre
                       return (
                         <button key={hab.id} onClick={() => setSelected(hab)} style={{
                           background: estado.bg,
                           border: `2px solid ${estado.color}`,
                           borderRadius: 10,
-                          padding: '0.75rem 0.5rem',
+                          padding: '0.6rem 0.5rem',
                           cursor: 'pointer',
                           textAlign: 'center',
-                          transition: 'transform 0.1s'
+                          transition: 'transform 0.1s',
+                          position: 'relative'
                         }}>
+                          {/* Etiqueta de movimiento Cloudbeds */}
+                          {hab.movimiento !== 'libre' && (
+                            <div style={{ position: 'absolute', top: 4, right: 4, fontSize: '0.6rem' }} title={mov.label}>{mov.emoji}</div>
+                          )}
                           <div style={{ fontSize: '1.1rem' }}>{estado.emoji}</div>
-                          <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--color-text)', marginTop: '0.25rem' }}>{hab.id}</div>
-                          <div style={{ fontSize: '0.62rem', color: estado.color, marginTop: '0.1rem' }}>{estado.label}</div>
+                          <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--color-text)', marginTop: '0.2rem' }}>{hab.id}</div>
+                          <div style={{ fontSize: '0.6rem', color: estado.color, marginTop: '0.1rem' }}>{estado.label}</div>
+                          <div style={{ fontSize: '0.55rem', color: mov.color, marginTop: '0.15rem', fontWeight: 500 }}>{mov.label}</div>
                         </button>
                       )
                     })}
@@ -128,7 +147,12 @@ export default function Habitaciones({ onBack }) {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 100 }} onClick={() => setSelected(null)}>
           <div style={{ background: 'white', borderRadius: '20px 20px 0 0', padding: '1.5rem', width: '100%', maxWidth: 480 }} onClick={e => e.stopPropagation()}>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', marginBottom: '0.25rem' }}>Habitación {selected.id}</div>
-            <div style={{ fontSize: '0.78rem', color: 'var(--color-text-light)', marginBottom: '1.25rem' }}>{selected.tipo} · Estado actual: {getEstado(selected.estado).label}</div>
+            <div style={{ fontSize: '0.78rem', color: 'var(--color-text-light)', marginBottom: '0.5rem' }}>{selected.tipo} · Estado actual: {getEstado(selected.estado).label}</div>
+            {selected.movimiento !== 'libre' && (
+              <div style={{ fontSize: '0.75rem', color: (MOVIMIENTOS[selected.movimiento] || {}).color, marginBottom: '1rem', fontWeight: 500 }}>
+                {(MOVIMIENTOS[selected.movimiento] || {}).emoji} Según Cloudbeds: {(MOVIMIENTOS[selected.movimiento] || {}).label}
+              </div>
+            )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
               {ESTADOS.map(e => (
                 <button key={e.id} onClick={() => actualizarEstado(selected.id, e.id)} disabled={updating} style={{
