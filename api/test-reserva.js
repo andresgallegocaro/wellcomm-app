@@ -24,17 +24,32 @@ export default async function handler(req, res) {
     const token = await getFreshToken()
     const headers = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
 
-    // Listar TODAS las habitaciones del hotel
-    const r = await fetch('https://api.cloudbeds.com/api/v1.1/getRooms', { headers })
-    const data = await r.json()
-    const habitaciones = normalizar(data).map(h => ({
-      roomID: h.roomID,
-      roomName: h.roomName,
-      roomTypeName: h.roomTypeName,
-      roomTypeID: h.roomTypeID
-    }))
+    // Probamos getRoomsFree (disponibilidad) que sí suele estar disponible
+    const hoy = new Date().toISOString().slice(0, 10)
+    const manana = new Date(Date.now() + 86400000).toISOString().slice(0, 10)
 
-    return res.status(200).json({ total: habitaciones.length, habitaciones })
+    const r1 = await fetch(`https://api.cloudbeds.com/api/v1.1/getAvailableRoomTypes?startDate=${hoy}&endDate=${manana}`, { headers })
+    const disponibles = await r1.json()
+
+    // Y sacamos los nombres de habitación reales de las reservas activas
+    const r2 = await fetch(`https://api.cloudbeds.com/api/v1.1/getReservations?status=checked_in&pageSize=30`, { headers })
+    const reservasLista = normalizar(await r2.json())
+
+    const nombresHabitaciones = new Set()
+    for (const rsv of reservasLista.slice(0, 30)) {
+      try {
+        const dr = await fetch(`https://api.cloudbeds.com/api/v1.1/getReservation?reservationID=${rsv.reservationID}`, { headers })
+        const d = (await dr.json())?.data
+        ;(d?.assigned || []).forEach(a => {
+          if (a.roomName) nombresHabitaciones.add(a.roomName)
+        })
+      } catch {}
+    }
+
+    return res.status(200).json({
+      disponibilidad: disponibles?.data || disponibles,
+      habitacionesOcupadasAhora: Array.from(nombresHabitaciones).sort()
+    })
   } catch (e) {
     return res.status(500).json({ error: e.message })
   }
