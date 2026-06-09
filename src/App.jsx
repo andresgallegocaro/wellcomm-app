@@ -20,7 +20,7 @@ const SCREENS = {
   STAFF_SOLICITUDES: 'staff_solicitudes', STAFF_CHECKLIST: 'staff_checklist',
   STAFF_RATES: 'staff_rates', STAFF_REVENUE: 'staff_revenue',
   STAFF_MANTENIMIENTO: 'staff_mantenimiento',
-  OWNER: 'owner', ADMIN: 'admin',
+  OWNER: 'owner', OWNER_REVENUE: 'owner_revenue', ADMIN: 'admin',
 }
 
 const C = {
@@ -44,7 +44,8 @@ export default function App() {
   function logout() { setSesion(null); setScreen(SCREENS.HOME) }
 
   if (screen === SCREENS.GUEST) return <GuestApp onBack={go(SCREENS.HOME)} />
-  if (screen === SCREENS.OWNER && puede('propietario')) return <OwnerPortal onBack={go(SCREENS.HOME)} />
+  if (screen === SCREENS.OWNER && puede('propietario')) return <OwnerPortal onBack={go(SCREENS.HOME)} onRevenue={puedeRevenue ? go(SCREENS.OWNER_REVENUE) : null} />
+  if (screen === SCREENS.OWNER_REVENUE && puede('propietario') && puedeRevenue) return <RevenueManager onBack={go(SCREENS.OWNER)} />
   if (screen === SCREENS.ADMIN && puede('admin')) return <AdminUsuarios adminPin={sesion.adminPin} onBack={go(SCREENS.HOME)} />
 
   if (screen === SCREENS.STAFF && puede('operacion')) return <StaffConcierge onBack={go(SCREENS.HOME)} onDashboard={go(SCREENS.STAFF_DASHBOARD)} onBriefing={go(SCREENS.STAFF_BRIEFING)} onNovedades={go(SCREENS.STAFF_NOVEDADES)} onHabitaciones={go(SCREENS.STAFF_HABITACIONES)} onSolicitudes={go(SCREENS.STAFF_SOLICITUDES)} onChecklist={go(SCREENS.STAFF_CHECKLIST)} onRates={go(SCREENS.STAFF_RATES)} onRevenue={go(SCREENS.STAFF_REVENUE)} onMantenimiento={go(SCREENS.STAFF_MANTENIMIENTO)} puedeRevenue={puedeRevenue} />
@@ -124,7 +125,7 @@ function LoginUnico({ onLogin }) {
           cursor: pin.length >= 4 ? 'pointer' : 'default', fontFamily: 'var(--font-body)'
         }}>{loading ? 'Verificando...' : 'Acceder →'}</button>
       </div>
-      <div style={{ fontSize: '0.68rem', color: C.muted, letterSpacing: '0.1em', marginTop: '2rem' }}>v2.6.0 · Gestionado por SOLARA Homes</div>
+      <div style={{ fontSize: '0.68rem', color: C.muted, letterSpacing: '0.1em', marginTop: '2rem' }}>v2.7.0 · Gestionado por SOLARA Homes</div>
     </div>
   )
 }
@@ -159,7 +160,7 @@ function HomeScreen({ sesion, puede, onSelect, onLogout }) {
 
       <button onClick={onLogout} style={{ background: 'none', border: '1px solid var(--color-text-light)', borderRadius: 10, color: 'var(--color-text-light)', padding: '0.5rem 1.2rem', cursor: 'pointer', fontSize: '0.78rem', fontFamily: 'var(--font-body)' }}>Cerrar sesión</button>
 
-      <div style={{ fontSize: '0.7rem', color: 'var(--color-text-light)', letterSpacing: '0.1em' }}>v2.6.0 · Gestionado por SOLARA Homes</div>
+      <div style={{ fontSize: '0.7rem', color: 'var(--color-text-light)', letterSpacing: '0.1em' }}>v2.7.0 · Gestionado por SOLARA Homes</div>
     </div>
   )
 }
