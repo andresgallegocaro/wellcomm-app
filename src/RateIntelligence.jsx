@@ -169,7 +169,6 @@ export default function RateIntelligence({ onBack }) {
               const pct = Math.round((hotel.precio / maxPrecio) * 100)
               return (
                 <div key={i} style={{
-                  padding: '0.75rem 0',
                   borderBottom: i < diaData.hoteles.length - 1 ? '1px solid var(--color-border)' : 'none',
                   background: esNosotros ? '#F0F9F4' : 'transparent',
                   margin: esNosotros ? '0 -1.25rem' : '0',
