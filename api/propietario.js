@@ -343,9 +343,11 @@ export default async function handler(req, res) {
       const gastos = gastosGuardados || {
         fijos: { nomina: 0, arriendo: 0, serviciosPublicos: 0, internet: 0, seguros: 0, cloudbeds: 0, otrosFijos: 0 },
         variables: { amenities: 0, lavanderia: 0, desayunos: 0, comisionBooking: 0, comisionExpedia: 0, comisionAirbnb: 0, mantenimiento: 0, otrosVariables: 0 },
-        ingresos: { habitaciones: cloudbeds.ingresosMes, terraza: 0, upselling: 0, otrosIngresos: 0 }
+        ingresos: { habitaciones: cloudbeds.ingresosMes, terraza: 0, spa: 0, upselling: 0, otrosIngresos: 0 }
       }
       gastos.ingresos.habitaciones = cloudbeds.ingresosMes
+      // Compatibilidad: si un mes guardado antes no tenía 'spa', lo inicializamos
+      if (gastos.ingresos.spa === undefined) gastos.ingresos.spa = 0
 
       const recibosLista = recibos || []
       const gastosPorCategoria = {}
