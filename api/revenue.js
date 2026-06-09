@@ -3,8 +3,8 @@ const KV_TOKEN = process.env.KV_REST_API_TOKEN
 
 // Bases de presupuesto en Notion. Configurables por env var para clonar la app.
 const PRESUPUESTO_DB_ID = process.env.PRESUPUESTO_DB_ID || 'd5cbf52988c748128fef6aaa46b9332e'
-const PRESUPUESTO_AB_DB_ID = process.env.PRESUPUESTO_AB_DB_ID || 'f058c900-6ae9-44fa-ab38-b15c31996d01'
-const PRESUPUESTO_SPA_DB_ID = process.env.PRESUPUESTO_SPA_DB_ID || '27d75544-3cc0-4a34-98c6-4720c50dbf69'
+const PRESUPUESTO_AB_DB_ID = process.env.PRESUPUESTO_AB_DB_ID || '464bb9a1-820e-4915-b1fa-b766c7a64443'
+const PRESUPUESTO_SPA_DB_ID = process.env.PRESUPUESTO_SPA_DB_ID || '45d1c4f0-13ba-49ce-b47d-2fdd4d6499bf'
 
 async function kvGet(key) {
   try {
@@ -391,14 +391,12 @@ export default async function handler(req, res) {
       const mesPedido = req.query.mes || today.slice(0, 7)
       const mesNum = Number(mesPedido.split('-')[1])
 
-      // Presupuestos (Notion)
       const [pptoHab, pptoAB, pptoSpa] = await Promise.all([
         getPresupuesto(NOTION_TOKEN),
         getPresupuestoSimple(NOTION_TOKEN, PRESUPUESTO_AB_DB_ID, 'VentasABPpto', 'presupuesto_ab_cache'),
         getPresupuestoSimple(NOTION_TOKEN, PRESUPUESTO_SPA_DB_ID, 'VentasSpaPpto', 'presupuesto_spa_cache'),
       ])
 
-      // Reales: habitaciones de Cloudbeds; A&B y Spa del KV de gastos (OwnerPortal)
       const [realHab, gastosMes] = await Promise.all([
         getRealMes(headers, mesPedido),
         kvGet(`gastos_${mesPedido}`),
@@ -431,7 +429,6 @@ export default async function handler(req, res) {
       const totalPpto = lineas.reduce((s, l) => s + l.ppto, 0)
       const totalReal = lineas.reduce((s, l) => s + l.real, 0)
 
-      // Resumen anual de las 3 líneas (solo presupuesto)
       const anual = []
       for (let m = 1; m <= 12; m++) {
         const h = pptoHab[m]?.ventas || 0
