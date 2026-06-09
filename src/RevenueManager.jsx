@@ -15,6 +15,7 @@ const TABS = [
   { id: 'competencia', label: '🏆 Competencia' },
   { id: 'eventos', label: '📅 Eventos' },
   { id: 'presupuesto', label: '📈 Ppto vs Real' },
+  { id: 'ppto360', label: '💎 Ppto 360' },
   { id: 'copilot', label: '🤖 Copilot' },
 ]
 
@@ -46,18 +47,26 @@ export default function RevenueManager({ onBack }) {
   const [copilotLoading, setCopilotLoading] = useState(false)
   const bottomRef = useRef(null)
 
-  // Estado del presupuesto
+  // Estado del presupuesto (habitaciones)
   const [pptoData, setPptoData] = useState(null)
   const [pptoLoading, setPptoLoading] = useState(false)
   const [pptoMes, setPptoMes] = useState(new Date().toISOString().slice(0, 7))
 
+  // Estado del Ppto 360 (3 líneas)
+  const [p360Data, setP360Data] = useState(null)
+  const [p360Loading, setP360Loading] = useState(false)
+  const [p360Mes, setP360Mes] = useState(new Date().toISOString().slice(0, 7))
+
   useEffect(() => { cargar() }, [])
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [copilotMsgs])
 
-  // Cargar presupuesto cuando se abre la pestaña o cambia el mes
   useEffect(() => {
     if (tab === 'presupuesto') cargarPresupuesto()
   }, [tab, pptoMes])
+
+  useEffect(() => {
+    if (tab === 'ppto360') cargarP360()
+  }, [tab, p360Mes])
 
   async function cargar() {
     setLoading(true)
@@ -92,6 +101,19 @@ export default function RevenueManager({ onBack }) {
       console.error(e)
     } finally {
       setPptoLoading(false)
+    }
+  }
+
+  async function cargarP360() {
+    setP360Loading(true)
+    try {
+      const res = await fetch(`/api/revenue?accion=presupuesto_lineas&mes=${p360Mes}`)
+      const d = await res.json()
+      setP360Data(d)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setP360Loading(false)
     }
   }
 
@@ -142,7 +164,6 @@ export default function RevenueManager({ onBack }) {
   const hab = data?.habitaciones?.[habSeleccionada]
   const mediaComp = Object.values(data?.competencia || {}).reduce((sum, h) => sum + (h.precio || 0), 0) / Object.keys(data?.competencia || {}).length
 
-  // Helpers presupuesto
   const fmtPct = (v) => `${Math.round((v || 0) * 100)}%`
   const colorCumplimiento = (pct) => pct >= 95 ? '#27ae60' : pct >= 80 ? '#e67e22' : '#e74c3c'
   const MESES_CORTO = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
@@ -488,11 +509,11 @@ export default function RevenueManager({ onBack }) {
           </div>
         )}
 
-        {/* PRESUPUESTO vs REAL */}
+        {/* PRESUPUESTO vs REAL (habitaciones) */}
         {tab === 'presupuesto' && (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem' }}>Presupuesto vs Real</div>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem' }}>Presupuesto vs Real · Habitaciones</div>
               <input type="month" value={pptoMes} onChange={e => setPptoMes(e.target.value)}
                 style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.4rem 0.6rem', fontSize: '0.8rem', fontFamily: 'var(--font-body)' }} />
             </div>
@@ -503,7 +524,6 @@ export default function RevenueManager({ onBack }) {
 
             {!pptoLoading && pptoData?.cumplimiento && (
               <>
-                {/* Tarjeta cumplimiento del mes */}
                 <div style={{ background: 'var(--color-text)', borderRadius: 12, padding: '1.25rem', color: 'white' }}>
                   <div style={{ fontSize: '0.68rem', color: 'var(--color-primary)', letterSpacing: '0.1em', marginBottom: '0.5rem' }}>
                     CUMPLIMIENTO · {pptoData.cumplimiento.mes.toUpperCase()} 2026
@@ -519,7 +539,6 @@ export default function RevenueManager({ onBack }) {
                   </div>
                 </div>
 
-                {/* Comparativa de métricas */}
                 <div style={{ background: 'white', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--shadow)' }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 0.8fr', gap: '0.5rem', fontSize: '0.7rem', color: 'var(--color-text-light)', fontWeight: 600, paddingBottom: '0.5rem', borderBottom: '2px solid var(--color-border)' }}>
                     <div>Métrica</div>
@@ -547,7 +566,6 @@ export default function RevenueManager({ onBack }) {
               </>
             )}
 
-            {/* Presupuesto anual completo */}
             {!pptoLoading && pptoData?.meses?.length > 0 && (
               <div style={{ background: 'white', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--shadow)' }}>
                 <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', marginBottom: '0.25rem' }}>Presupuesto anual 2026</div>
@@ -578,6 +596,124 @@ export default function RevenueManager({ onBack }) {
             {!pptoLoading && !pptoData?.cumplimiento && (
               <div style={{ background: 'white', borderRadius: 12, padding: '1.5rem', boxShadow: 'var(--shadow)', textAlign: 'center', color: 'var(--color-text-light)', fontSize: '0.82rem' }}>
                 No hay presupuesto cargado para este mes. Verifica que la base de Notion esté conectada a la integración WELLcomm App.
+              </div>
+            )}
+          </>
+        )}
+
+        {/* PPTO 360 — 3 líneas */}
+        {tab === 'ppto360' && (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem' }}>Ppto 360 · Líneas de negocio</div>
+              <input type="month" value={p360Mes} onChange={e => setP360Mes(e.target.value)}
+                style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.4rem 0.6rem', fontSize: '0.8rem', fontFamily: 'var(--font-body)' }} />
+            </div>
+
+            {p360Loading && (
+              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--color-text-light)' }}>Calculando ingresos del mes...</div>
+            )}
+
+            {!p360Loading && p360Data && (
+              <>
+                {/* Tarjeta total consolidado */}
+                <div style={{ background: 'var(--color-text)', borderRadius: 12, padding: '1.25rem', color: 'white' }}>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--color-primary)', letterSpacing: '0.1em', marginBottom: '0.5rem' }}>
+                    INGRESOS TOTALES · {(p360Data.mes || '').toUpperCase()} 2026
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                    <div style={{ fontFamily: 'var(--font-display)', fontSize: '2.4rem', fontWeight: 300, color: colorCumplimiento(p360Data.cumplimientoTotal) }}>
+                      {p360Data.cumplimientoTotal}%
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: '#aaa' }}>del presupuesto consolidado</div>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem', fontSize: '0.75rem' }}>
+                    <span style={{ color: '#aaa' }}>Real: <strong style={{ color: 'white' }}>{fmtCOP(p360Data.totalReal)}</strong></span>
+                    <span style={{ color: '#aaa' }}>Ppto: <strong style={{ color: 'white' }}>{fmtCOP(p360Data.totalPpto)}</strong></span>
+                  </div>
+                </div>
+
+                {/* Tarjetas por línea */}
+                {p360Data.lineas?.map((l, i) => {
+                  const dif = l.real - l.ppto
+                  return (
+                    <div key={i} style={{ background: 'white', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--shadow)', borderLeft: `4px solid ${colorCumplimiento(l.cumplimiento)}` }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+                        <div>
+                          <div style={{ fontSize: '0.92rem', fontWeight: 600 }}>{l.label}</div>
+                          <div style={{ fontSize: '0.65rem', color: 'var(--color-text-light)' }}>{l.fuente}</div>
+                        </div>
+                        <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: 600, color: colorCumplimiento(l.cumplimiento) }}>
+                          {l.cumplimiento}%
+                        </div>
+                      </div>
+                      <div style={{ background: 'var(--color-bg)', borderRadius: 4, height: 8, marginBottom: '0.75rem', overflow: 'hidden' }}>
+                        <div style={{ width: `${Math.min(l.cumplimiento, 100)}%`, background: colorCumplimiento(l.cumplimiento), height: 8, borderRadius: 4 }} />
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem', fontSize: '0.72rem' }}>
+                        <div>
+                          <div style={{ color: 'var(--color-text-light)' }}>Presupuesto</div>
+                          <div style={{ fontWeight: 600 }}>{fmt(l.ppto)}</div>
+                        </div>
+                        <div>
+                          <div style={{ color: 'var(--color-text-light)' }}>Real</div>
+                          <div style={{ fontWeight: 600 }}>{fmt(l.real)}</div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ color: 'var(--color-text-light)' }}>Diferencia</div>
+                          <div style={{ fontWeight: 700, color: dif >= 0 ? '#27ae60' : '#e74c3c' }}>{dif >= 0 ? '+' : '−'}{fmt(Math.abs(dif))}</div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+
+                {/* Resumen anual consolidado */}
+                {p360Data.anual?.length > 0 && (
+                  <div style={{ background: 'white', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--shadow)' }}>
+                    <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', marginBottom: '0.25rem' }}>Presupuesto anual consolidado 2026</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--color-text-light)', marginBottom: '1rem' }}>
+                      Total año: {fmtCOP(p360Data.totalesAnio?.total)} · Hab {fmt(p360Data.totalesAnio?.habitaciones)} · A&B {fmt(p360Data.totalesAnio?.ab)} · Spa {fmt(p360Data.totalesAnio?.spa)}
+                    </div>
+                    {p360Data.anual.map((m, i) => {
+                      const maxTotal = Math.max(...p360Data.anual.map(x => x.total))
+                      const wH = maxTotal > 0 ? (m.habitaciones / maxTotal) * 100 : 0
+                      const wA = maxTotal > 0 ? (m.ab / maxTotal) * 100 : 0
+                      const wS = maxTotal > 0 ? (m.spa / maxTotal) * 100 : 0
+                      const mesStr = `2026-${String(m.mesNumero).padStart(2, '0')}`
+                      return (
+                        <div key={i} onClick={() => setP360Mes(mesStr)} style={{ marginBottom: '0.6rem', cursor: 'pointer', opacity: m.esMesActual ? 1 : 0.9 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
+                            <span style={{ fontSize: '0.74rem', fontWeight: m.esMesActual ? 700 : 400, color: m.esMesActual ? 'var(--color-primary)' : 'var(--color-text)' }}>
+                              {MESES_CORTO[m.mesNumero]} {m.esMesActual ? '←' : ''}
+                            </span>
+                            <span style={{ fontSize: '0.72rem', fontWeight: 600 }}>{fmt(m.total)}</span>
+                          </div>
+                          <div style={{ display: 'flex', background: 'var(--color-bg)', borderRadius: 4, height: 8, overflow: 'hidden' }}>
+                            <div style={{ width: `${wH}%`, background: '#3498db', height: 8 }} title="Habitaciones" />
+                            <div style={{ width: `${wA}%`, background: '#e67e22', height: 8 }} title="A&B" />
+                            <div style={{ width: `${wS}%`, background: '#9b59b6', height: 8 }} title="Spa" />
+                          </div>
+                        </div>
+                      )
+                    })}
+                    <div style={{ display: 'flex', gap: '1rem', marginTop: '0.75rem', fontSize: '0.65rem', color: 'var(--color-text-light)' }}>
+                      <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#3498db', borderRadius: 2, marginRight: 4 }} />Habitaciones</span>
+                      <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#e67e22', borderRadius: 2, marginRight: 4 }} />A&B</span>
+                      <span><span style={{ display: 'inline-block', width: 8, height: 8, background: '#9b59b6', borderRadius: 2, marginRight: 4 }} />Spa</span>
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ fontSize: '0.68rem', color: 'var(--color-text-light)', textAlign: 'center' }}>
+                  Habitaciones en vivo desde Cloudbeds · A&B y Spa desde los ingresos manuales del Portal del Propietario.
+                </div>
+              </>
+            )}
+
+            {!p360Loading && p360Data && p360Data.totalPpto === 0 && (
+              <div style={{ background: 'white', borderRadius: 12, padding: '1.5rem', boxShadow: 'var(--shadow)', textAlign: 'center', color: 'var(--color-text-light)', fontSize: '0.82rem' }}>
+                No hay presupuesto cargado. Verifica que las bases de A&B y Spa en Notion estén conectadas a la integración WELLcomm App.
               </div>
             )}
           </>
