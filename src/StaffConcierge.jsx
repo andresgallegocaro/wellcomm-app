@@ -9,7 +9,7 @@ const SUGGESTED_QUESTIONS = [
   '¿Cómo funciona el Revenue Management con PricePoint?',
 ]
 
-export default function StaffConcierge({ onBack, onDashboard, onBriefing, onNovedades, onHabitaciones, onSolicitudes, onChecklist, onRates, onRevenue, onMantenimiento, puedeRevenue }) {
+export default function StaffConcierge({ onBack, onDashboard, onBriefing, onNovedades, onHabitaciones, onSolicitudes, onChecklist, onRates, onRevenue, onMantenimiento, onEquipo, puedeRevenue }) {
   const [messages, setMessages] = useState([
     { role: 'assistant', text: '✳ Welcome to WELLcomm\n\n¿En qué puedo ayudarte hoy?' }
   ])
@@ -50,6 +50,7 @@ export default function StaffConcierge({ onBack, onDashboard, onBriefing, onNove
     { label: '✅ Checklist', onClick: onChecklist },
     { label: '🛏️ Habitaciones', onClick: onHabitaciones },
     { label: '🔧 Mantenimiento', onClick: onMantenimiento },
+    { label: '👥 Equipo', onClick: onEquipo },
     { label: '🛎️ Solicitudes', onClick: onSolicitudes },
     ...(puedeRevenue ? [
       { label: '💰 Revenue', onClick: onRevenue },
