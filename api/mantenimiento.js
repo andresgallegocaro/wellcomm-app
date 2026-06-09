@@ -9,8 +9,13 @@ const CATALOGO = {
   'Mobiliario': ['Cama/colchón dañado', 'Silla rota', 'Puerta de clóset descuadrada', 'Cajón atascado'],
   'Baño': ['Azulejo roto', 'Espejo dañado', 'Secador no funciona', 'Accesorio suelto'],
   'Cerrajería': ['Cerradura/llave dañada', 'Caja fuerte bloqueada', 'Manija suelta'],
+  'Áreas comunes': ['Ascensor fuera de servicio', 'Iluminación de zona común', 'Daño en mobiliario común', 'Equipo de spa dañado', 'Daño en cocina', 'Fachada/exterior', 'Piscina/jacuzzi', 'Señalización'],
   'General': ['Pintura/pared dañada', 'Cortina rota', 'WiFi sin señal', 'Olor persistente', 'Ventana atascada'],
 }
+
+// Habitaciones (25) + zonas de áreas comunes. El campo "habitacion" guarda cualquiera de estas.
+const HABITACIONES = ['301','302','303','304','305','306','307','401','402','403','404','405','406','407','501','502','503','504','505','506','601','602','603','604','605']
+const ZONAS_COMUNES = ['Spa', 'Terraza', 'Lobby', 'Pasillos y escalas', 'Ascensor', 'Cuarto de empleados', 'Oficina', 'Baños comunes', 'Fachada', 'Cocina', 'Otros']
 
 const PRIORIDADES = ['alta', 'media', 'baja']
 
@@ -57,15 +62,16 @@ export default async function handler(req, res) {
 
       // ── Reportar un nuevo daño ──
       if (body.action === 'reportar') {
-        const { habitacion, categoria, descripcion, usuario } = body
+        const { habitacion, categoria, descripcion, usuario, tipoUbicacion } = body
         const tareas = await kvGet('mantenimiento_tareas') || []
         tareas.unshift({
           id: Date.now(),
           habitacion,
+          tipoUbicacion: tipoUbicacion || 'habitacion', // 'habitacion' | 'zona'
           categoria: categoria || 'General',
           descripcion,
-          prioridad: null,          // sin priorizar al inicio
-          estado: 'reportado',      // reportado → en_proceso → resuelto
+          prioridad: null,
+          estado: 'reportado',
           reportadoPor: usuario || 'Desconocido',
           reportadoFecha: hoy,
           reportadoHora: ahoraColombia(),
@@ -123,9 +129,9 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Acción no válida' })
     }
 
-    // ── GET: devolver todas las tareas + el catálogo ──
+    // ── GET: devolver todas las tareas + el catálogo + ubicaciones ──
     const tareas = await kvGet('mantenimiento_tareas') || []
-    return res.status(200).json({ tareas, catalogo: CATALOGO, prioridades: PRIORIDADES })
+    return res.status(200).json({ tareas, catalogo: CATALOGO, prioridades: PRIORIDADES, habitaciones: HABITACIONES, zonasComunes: ZONAS_COMUNES })
 
   } catch (error) {
     return res.status(500).json({ error: error.message })
