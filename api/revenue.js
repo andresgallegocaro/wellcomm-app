@@ -1,6 +1,9 @@
 const KV_URL = process.env.KV_REST_API_URL
 const KV_TOKEN = process.env.KV_REST_API_TOKEN
 
+// Base "Presupuesto 2026 (Revenue)" en Notion. Configurable por env var para clonar la app.
+const PRESUPUESTO_DB_ID = process.env.PRESUPUESTO_DB_ID || 'd5cbf52988c748128fef6aaa46b9332e'
+
 async function kvGet(key) {
   try {
     const res = await fetch(`${KV_URL}/get/${encodeURIComponent(key)}`, {
@@ -48,6 +51,113 @@ function calcNights(startDate, endDate) {
 function normalizar(data) {
   if (!data?.data) return []
   return Array.isArray(data.data) ? data.data : Object.values(data.data)
+}
+
+const sleep = (ms) => new Promise(r => setTimeout(r, ms))
+
+const MESES_NOMBRE = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+
+// ── Lee el presupuesto 2026 de Notion, con caché de 10 min ──
+async function getPresupuesto(NOTION_TOKEN) {
+  const cache = await kvGet('presupuesto_cache')
+  if (cache && cache.ts && (Date.now() - cache.ts < 10 * 60 * 1000)) {
+    return cache.meses
+  }
+  try {
+    const res = await fetch(`https://api.notion.com/v1/databases/${PRESUPUESTO_DB_ID}/query`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${NOTION_TOKEN}`,
+        'Notion-Version': '2022-06-28',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ page_size: 100 })
+    })
+    const data = await res.json()
+    if (!data.results) return {}
+
+    const num = (p) => (p && typeof p.number === 'number') ? p.number : 0
+    const meses = {}
+    for (const page of data.results) {
+      const props = page.properties || {}
+      const mesNum = num(props.MesNumero)
+      if (!mesNum) continue
+      meses[mesNum] = {
+        mes: MESES_NOMBRE[mesNum],
+        mesNumero: mesNum,
+        habVendidas: num(props.HabVendidasPpto),
+        tarifa: num(props.TarifaPpto),
+        ventas: num(props.VentasAlojamientoPpto),
+        ocupacion: num(props.OcupacionPpto),
+      }
+    }
+    await kvSet('presupuesto_cache', { meses, ts: Date.now() })
+    return meses
+  } catch (e) {
+    return {}
+  }
+}
+
+// ── Lee el REAL de Cloudbeds para un mes (YYYY-MM), noche por noche ──
+async function getRealMes(headers, anioMes) {
+  const [anio, mes] = anioMes.split('-').map(Number)
+  const primerDia = `${anioMes}-01`
+  const ultimoDiaNum = new Date(anio, mes, 0).getDate()
+  const ultimoDia = `${anioMes}-${String(ultimoDiaNum).padStart(2, '0')}`
+
+  // Traer reservas que se solapan con el mes
+  let reservas = []
+  try {
+    for (let page = 1; page <= 6; page++) {
+      const r = await fetch(`https://api.cloudbeds.com/api/v1.1/getReservations?checkInTo=${ultimoDia}&checkOutFrom=${primerDia}&pageSize=100&pageNumber=${page}`, { headers })
+      const lote = normalizar(await r.json())
+      reservas = reservas.concat(lote)
+      if (lote.length < 100) break
+    }
+  } catch (e) {}
+
+  // Filtrar estados válidos
+  const validas = reservas.filter(r => {
+    const s = (r.status || '').toLowerCase()
+    return ['checked_in', 'checked_out', 'confirmed'].includes(s)
+  })
+
+  // Traer detalle en lotes para sumar noche por noche
+  let ingresos = 0
+  let nochesVendidas = 0
+  for (let i = 0; i < validas.length; i += 15) {
+    const lote = validas.slice(i, i + 15)
+    const detalles = await Promise.all(lote.map(async r => {
+      try {
+        const dr = await fetch(`https://api.cloudbeds.com/api/v1.1/getReservation?reservationID=${r.reservationID}`, { headers })
+        return (await dr.json())?.data || null
+      } catch { return null }
+    }))
+    detalles.forEach(d => {
+      if (!d) return
+      ;(d.assigned || []).forEach(a => {
+        (a.dailyRates || []).forEach(dr => {
+          if (dr.date >= primerDia && dr.date <= ultimoDia) {
+            ingresos += parseFloat(dr.rate || 0)
+            nochesVendidas += 1
+          }
+        })
+      })
+    })
+    if (i + 15 < validas.length) await sleep(250)
+  }
+
+  const habDisponibles = 25 * ultimoDiaNum
+  const tarifaReal = nochesVendidas > 0 ? Math.round(ingresos / nochesVendidas) : 0
+  const ocupacionReal = habDisponibles > 0 ? (nochesVendidas / habDisponibles) : 0
+
+  return {
+    habVendidas: nochesVendidas,
+    tarifa: tarifaReal,
+    ventas: Math.round(ingresos),
+    ocupacion: ocupacionReal,
+    habDisponibles,
+  }
 }
 
 const HABITACIONES = {
@@ -191,9 +301,56 @@ export default async function handler(req, res) {
       ? (typeof req.body === 'string' ? JSON.parse(req.body) : req.body)
       : {}
 
+    const NOTION_TOKEN = process.env.NOTION_TOKEN
     const token = await getFreshToken()
     const headers = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
     const today = new Date().toISOString().split('T')[0]
+
+    // ── GET con accion=presupuesto: comparar presupuesto vs real ──
+    if (req.method === 'GET' && req.query.accion === 'presupuesto') {
+      const presupuesto = await getPresupuesto(NOTION_TOKEN)
+      const mesPedido = req.query.mes || today.slice(0, 7) // YYYY-MM
+
+      // Real del mes pedido (lectura en vivo de Cloudbeds)
+      const real = await getRealMes(headers, mesPedido)
+      const mesNum = Number(mesPedido.split('-')[1])
+      const ppto = presupuesto[mesNum] || null
+
+      // Resumen anual: presupuesto de los 12 meses (real solo del mes pedido para no saturar)
+      const meses = []
+      for (let m = 1; m <= 12; m++) {
+        const p = presupuesto[m]
+        if (!p) continue
+        meses.push({
+          mesNumero: m,
+          mes: p.mes,
+          pptoVentas: p.ventas,
+          pptoHab: p.habVendidas,
+          pptoTarifa: p.tarifa,
+          pptoOcupacion: p.ocupacion,
+          esMesActual: m === mesNum,
+        })
+      }
+
+      // Cumplimiento del mes pedido
+      let cumplimiento = null
+      if (ppto) {
+        cumplimiento = {
+          mes: ppto.mes,
+          anioMes: mesPedido,
+          ppto: { ventas: ppto.ventas, habVendidas: ppto.habVendidas, tarifa: ppto.tarifa, ocupacion: ppto.ocupacion },
+          real: { ventas: real.ventas, habVendidas: real.habVendidas, tarifa: real.tarifa, ocupacion: real.ocupacion },
+          cumplimientoVentas: ppto.ventas > 0 ? Math.round((real.ventas / ppto.ventas) * 100) : 0,
+          cumplimientoHab: ppto.habVendidas > 0 ? Math.round((real.habVendidas / ppto.habVendidas) * 100) : 0,
+          cumplimientoTarifa: ppto.tarifa > 0 ? Math.round((real.tarifa / ppto.tarifa) * 100) : 0,
+          difVentas: real.ventas - ppto.ventas,
+        }
+      }
+
+      const totalPptoAnio = Object.values(presupuesto).reduce((s, m) => s + (m.ventas || 0), 0)
+
+      return res.status(200).json({ cumplimiento, meses, totalPptoAnio, mesConsultado: mesPedido })
+    }
 
     let ocupacionActual = 50
     let enCasa = 0
@@ -204,7 +361,6 @@ export default async function handler(req, res) {
     try {
       const [enCasaRes, futuraRes] = await Promise.all([
         fetch(`https://api.cloudbeds.com/api/v1.1/getReservations?status=checked_in&pageSize=25`, { headers }),
-        // ✅ FIX: status=confirmed para reservas futuras reales
         fetch(`https://api.cloudbeds.com/api/v1.1/getReservations?status=confirmed&pageSize=50`, { headers }),
       ])
 
@@ -214,7 +370,6 @@ export default async function handler(req, res) {
       enCasa = enCasaLista.length
       ocupacionActual = Math.round((enCasa / TOTAL_HAB) * 100)
 
-      // Revenue real por reserva individual
       const detalles = await Promise.all(
         enCasaLista.map(async r => {
           try {
@@ -249,7 +404,6 @@ export default async function handler(req, res) {
       const preciosKV          = await kvGet('competencia_precios') || {}
       const ultimaActualizacion = await kvGet('competencia_ultima_actualizacion')
 
-      // Mezclar precios KV + base investigada
       const preciosComp = {}
       Object.entries(COMPETENCIA_BASE).forEach(([hotel, base]) => {
         preciosComp[hotel] = {
@@ -285,7 +439,6 @@ export default async function handler(req, res) {
         if (hoy.diferencia < -10) alertas.push({ tipo: 'bajar', hab: hoy.nombre, mensaje: `Baja ${hoy.nombre} a ${(hoy.barRecomendado/1000).toFixed(0)}K (${hoy.diferencia}%)`, color: '#e74c3c' })
       })
 
-      // Alerta comercial si hay pocas reservas futuras
       if (reservasFuturas.length < 5) {
         alertas.unshift({
           tipo: 'comercial',
@@ -352,6 +505,22 @@ export default async function handler(req, res) {
           recsHoy[tipo] = calcularBARRecomendado(tipo, ocupacionActual, today, preciosCompArray)
         })
 
+        // Presupuesto del mes actual para el Copilot
+        const presupuesto = await getPresupuesto(NOTION_TOKEN)
+        const mesActualNum = Number(today.slice(5, 7))
+        const pptoMes = presupuesto[mesActualNum]
+        let bloquePresupuesto = ''
+        if (pptoMes) {
+          bloquePresupuesto = `
+
+PRESUPUESTO DE ${pptoMes.mes.toUpperCase()} 2026 (objetivo del mes):
+- Ventas alojamiento presupuestadas: $${pptoMes.ventas.toLocaleString('es-CO')} COP
+- Habitaciones-noche presupuestadas: ${pptoMes.habVendidas}
+- Tarifa presupuestada: $${pptoMes.tarifa.toLocaleString('es-CO')} COP
+- Ocupación presupuestada: ${(pptoMes.ocupacion * 100).toFixed(1)}%
+Compara el ritmo real contra este presupuesto cuando sea relevante.`
+        }
+
         const contexto = `Eres el Revenue Manager senior de WELLcomm Spa & Hotel, boutique wellness de 25 habitaciones en Manila, Medellín, Colombia. Gestionado por SOLARA Homes.
 
 DATOS EN TIEMPO REAL HOY (${today}):
@@ -359,7 +528,7 @@ DATOS EN TIEMPO REAL HOY (${today}):
 - ADR real Cloudbeds: $${adrReal.toLocaleString('es-CO')} COP
 - RevPAR real: $${revparReal.toLocaleString('es-CO')} COP
 - Reservas futuras confirmadas (On the Books): ${reservasFuturas.length}
-- Eventos activos hoy: ${eventosHoy.map(e => e.nombre).join(', ') || 'Ninguno'}
+- Eventos activos hoy: ${eventosHoy.map(e => e.nombre).join(', ') || 'Ninguno'}${bloquePresupuesto}
 
 ESTRUCTURA TARIFARIA:
 - Estándar (11 hab, 20m²): BAR $480K | Mín $420K | Máx $580K
@@ -378,7 +547,7 @@ WELLcomm vs media: ${mediaComp > 0 ? (((480000/mediaComp)-1)*100).toFixed(1) : '
 TARGETS AÑO 1: ADR $430K | RevPAR $301K | Ocupación 70%
 ADR actual vs target: ${adrReal > 0 ? (((adrReal/430000)-1)*100).toFixed(1) : 'N/D'}%
 
-Razona como el mejor revenue manager del mundo. Usa los datos reales. Da recomendaciones accionables con números exactos. Responde en español.`
+Razona como el mejor revenue manager del mundo. Usa los datos reales. Da recomendaciones accionables con números exactos. Nunca recomiendes tarifas por debajo del mínimo de cada tipo de habitación. Responde en español.`
 
         const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
