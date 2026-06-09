@@ -1,13 +1,11 @@
 const KV_URL = process.env.KV_REST_API_URL
 const KV_TOKEN = process.env.KV_REST_API_TOKEN
 
-// PIN maestro de Andi (admin). Da acceso total + panel de gestión.
 const ADMIN_PIN = '1450'
 
-// Niveles de acceso disponibles
 const NIVELES = {
   direccion: { label: 'Dirección', acceso: ['dashboard', 'revenue', 'propietario', 'operacion', 'admin', 'auditoria'] },
-  lider: { label: 'Líder', acceso: ['operacion', 'auditoria'] },
+  lider: { label: 'Líder', acceso: ['operacion', 'auditoria', 'revenue', 'dashboard'] },
   propietario: { label: 'Propietario', acceso: ['propietario'] },
   staff: { label: 'Staff', acceso: ['operacion'] },
 }
@@ -56,11 +54,9 @@ export default async function handler(req, res) {
       ? (typeof req.body === 'string' ? JSON.parse(req.body) : req.body)
       : {}
 
-    // ── LOGIN: valida el PIN y devuelve el nivel de acceso ──
     if (req.method === 'POST' && body.action === 'login') {
       const pin = String(body.pin || '')
 
-      // ¿Es el admin (Andi)?
       if (pin === ADMIN_PIN) {
         return res.status(200).json({
           ok: true,
@@ -69,7 +65,6 @@ export default async function handler(req, res) {
         })
       }
 
-      // Buscar en los usuarios creados
       const usuarios = await getUsuarios()
       const u = usuarios.find(x => x.pin === pin && x.activo !== false)
       if (!u) return res.status(401).json({ error: 'PIN incorrecto' })
@@ -81,14 +76,12 @@ export default async function handler(req, res) {
       })
     }
 
-    // ── ADMIN: listar usuarios (requiere PIN admin) ──
     if (req.method === 'POST' && body.action === 'listar') {
       if (String(body.adminPin) !== ADMIN_PIN) return res.status(403).json({ error: 'No autorizado' })
       const usuarios = await getUsuarios()
       return res.status(200).json({ ok: true, usuarios, niveles: NIVELES })
     }
 
-    // ── ADMIN: crear usuario ──
     if (req.method === 'POST' && body.action === 'crear') {
       if (String(body.adminPin) !== ADMIN_PIN) return res.status(403).json({ error: 'No autorizado' })
       const { nombre, pin, nivel } = body
@@ -103,7 +96,6 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, usuarios })
     }
 
-    // ── ADMIN: editar usuario ──
     if (req.method === 'POST' && body.action === 'editar') {
       if (String(body.adminPin) !== ADMIN_PIN) return res.status(403).json({ error: 'No autorizado' })
       const { id, cambios } = body
@@ -118,7 +110,6 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, usuarios: actualizados })
     }
 
-    // ── ADMIN: eliminar usuario ──
     if (req.method === 'POST' && body.action === 'eliminar') {
       if (String(body.adminPin) !== ADMIN_PIN) return res.status(403).json({ error: 'No autorizado' })
       const { id } = body
