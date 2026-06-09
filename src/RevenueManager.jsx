@@ -14,6 +14,7 @@ const TABS = [
   { id: 'tarifas', label: '💰 Tarifas' },
   { id: 'competencia', label: '🏆 Competencia' },
   { id: 'eventos', label: '📅 Eventos' },
+  { id: 'presupuesto', label: '📈 Ppto vs Real' },
   { id: 'copilot', label: '🤖 Copilot' },
 ]
 
@@ -39,14 +40,24 @@ export default function RevenueManager({ onBack }) {
   const [savedComp, setSavedComp] = useState(false)
   const [copilotMsgs, setCopilotMsgs] = useState([{
     role: 'assistant',
-    text: '📊 Hola, soy tu Revenue Manager IA.\n\nTengo acceso en tiempo real a tu ocupación, ADR real de Cloudbeds, tarifas, competencia y eventos de Medellín.\n\n¿Qué analizamos hoy?'
+    text: '📊 Hola, soy tu Revenue Manager IA.\n\nTengo acceso en tiempo real a tu ocupación, ADR real de Cloudbeds, tarifas, competencia, eventos y presupuesto de Medellín.\n\n¿Qué analizamos hoy?'
   }])
   const [copilotInput, setCopilotInput] = useState('')
   const [copilotLoading, setCopilotLoading] = useState(false)
   const bottomRef = useRef(null)
 
+  // Estado del presupuesto
+  const [pptoData, setPptoData] = useState(null)
+  const [pptoLoading, setPptoLoading] = useState(false)
+  const [pptoMes, setPptoMes] = useState(new Date().toISOString().slice(0, 7))
+
   useEffect(() => { cargar() }, [])
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [copilotMsgs])
+
+  // Cargar presupuesto cuando se abre la pestaña o cambia el mes
+  useEffect(() => {
+    if (tab === 'presupuesto') cargarPresupuesto()
+  }, [tab, pptoMes])
 
   async function cargar() {
     setLoading(true)
@@ -68,6 +79,19 @@ export default function RevenueManager({ onBack }) {
       console.error(e)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function cargarPresupuesto() {
+    setPptoLoading(true)
+    try {
+      const res = await fetch(`/api/revenue?accion=presupuesto&mes=${pptoMes}`)
+      const d = await res.json()
+      setPptoData(d)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setPptoLoading(false)
     }
   }
 
@@ -118,6 +142,11 @@ export default function RevenueManager({ onBack }) {
   const hab = data?.habitaciones?.[habSeleccionada]
   const mediaComp = Object.values(data?.competencia || {}).reduce((sum, h) => sum + (h.precio || 0), 0) / Object.keys(data?.competencia || {}).length
 
+  // Helpers presupuesto
+  const fmtPct = (v) => `${Math.round((v || 0) * 100)}%`
+  const colorCumplimiento = (pct) => pct >= 95 ? '#27ae60' : pct >= 80 ? '#e67e22' : '#e74c3c'
+  const MESES_CORTO = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--color-bg)', display: 'flex', flexDirection: 'column' }}>
 
@@ -163,7 +192,6 @@ export default function RevenueManager({ onBack }) {
               </div>
             )}
 
-            {/* KPIs — 4 métricas reales */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
               {[
                 { label: 'Ocupación', val: `${data?.ocupacionActual}%`, sub: `${data?.enCasa}/25 hab.`, color: data?.ocupacionActual >= 70 ? '#27ae60' : data?.ocupacionActual >= 50 ? '#e67e22' : '#e74c3c' },
@@ -179,7 +207,6 @@ export default function RevenueManager({ onBack }) {
               ))}
             </div>
 
-            {/* Posición vs competencia */}
             <div style={{ background: 'white', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--shadow)' }}>
               <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', marginBottom: '0.75rem' }}>🏆 Posición vs Competencia</div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
@@ -199,7 +226,6 @@ export default function RevenueManager({ onBack }) {
               </div>
             </div>
 
-            {/* Recomendaciones hoy */}
             <div style={{ background: 'white', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--shadow)' }}>
               <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', marginBottom: '0.75rem' }}>📊 Recomendaciones de hoy</div>
               {Object.entries(data?.recomendaciones || {}).map(([tipo, fechas]) => {
@@ -220,7 +246,6 @@ export default function RevenueManager({ onBack }) {
               })}
             </div>
 
-            {/* Próximos eventos */}
             {data?.eventosProximos?.length > 0 && (
               <div style={{ background: 'white', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--shadow)' }}>
                 <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', marginBottom: '0.75rem' }}>📅 Próximos eventos</div>
@@ -356,7 +381,6 @@ export default function RevenueManager({ onBack }) {
         {/* COMPETENCIA */}
         {tab === 'competencia' && (
           <>
-            {/* Comparativa visual automática */}
             <div style={{ background: 'white', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--shadow)' }}>
               <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', marginBottom: '0.25rem' }}>📊 WELLcomm vs Competencia</div>
               <div style={{ fontSize: '0.7rem', color: 'var(--color-text-light)', marginBottom: '1rem' }}>
@@ -390,7 +414,6 @@ export default function RevenueManager({ onBack }) {
               })}
             </div>
 
-            {/* Inputs para actualizar */}
             <div style={{ background: 'white', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--shadow)' }}>
               <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', marginBottom: '0.25rem' }}>✏️ Actualizar precios</div>
               <div style={{ fontSize: '0.72rem', color: 'var(--color-text-light)', marginBottom: '1rem' }}>
@@ -465,6 +488,101 @@ export default function RevenueManager({ onBack }) {
           </div>
         )}
 
+        {/* PRESUPUESTO vs REAL */}
+        {tab === 'presupuesto' && (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem' }}>Presupuesto vs Real</div>
+              <input type="month" value={pptoMes} onChange={e => setPptoMes(e.target.value)}
+                style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.4rem 0.6rem', fontSize: '0.8rem', fontFamily: 'var(--font-body)' }} />
+            </div>
+
+            {pptoLoading && (
+              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--color-text-light)' }}>Calculando real desde Cloudbeds...</div>
+            )}
+
+            {!pptoLoading && pptoData?.cumplimiento && (
+              <>
+                {/* Tarjeta cumplimiento del mes */}
+                <div style={{ background: 'var(--color-text)', borderRadius: 12, padding: '1.25rem', color: 'white' }}>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--color-primary)', letterSpacing: '0.1em', marginBottom: '0.5rem' }}>
+                    CUMPLIMIENTO · {pptoData.cumplimiento.mes.toUpperCase()} 2026
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                    <div style={{ fontFamily: 'var(--font-display)', fontSize: '2.4rem', fontWeight: 300, color: colorCumplimiento(pptoData.cumplimiento.cumplimientoVentas) }}>
+                      {pptoData.cumplimiento.cumplimientoVentas}%
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: '#aaa' }}>del presupuesto en ventas</div>
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: pptoData.cumplimiento.difVentas >= 0 ? 'var(--color-primary)' : '#e74c3c' }}>
+                    {pptoData.cumplimiento.difVentas >= 0 ? '▲' : '▼'} {fmtCOP(Math.abs(pptoData.cumplimiento.difVentas))} {pptoData.cumplimiento.difVentas >= 0 ? 'sobre' : 'bajo'} lo presupuestado
+                  </div>
+                </div>
+
+                {/* Comparativa de métricas */}
+                <div style={{ background: 'white', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--shadow)' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 0.8fr', gap: '0.5rem', fontSize: '0.7rem', color: 'var(--color-text-light)', fontWeight: 600, paddingBottom: '0.5rem', borderBottom: '2px solid var(--color-border)' }}>
+                    <div>Métrica</div>
+                    <div style={{ textAlign: 'right' }}>Presupuesto</div>
+                    <div style={{ textAlign: 'right' }}>Real</div>
+                    <div style={{ textAlign: 'right' }}>%</div>
+                  </div>
+                  {[
+                    { label: 'Ventas alojamiento', ppto: fmtCOP(pptoData.cumplimiento.ppto.ventas), real: fmtCOP(pptoData.cumplimiento.real.ventas), pct: pptoData.cumplimiento.cumplimientoVentas },
+                    { label: 'Habitaciones-noche', ppto: pptoData.cumplimiento.ppto.habVendidas, real: pptoData.cumplimiento.real.habVendidas, pct: pptoData.cumplimiento.cumplimientoHab },
+                    { label: 'Tarifa media (ADR)', ppto: fmtCOP(pptoData.cumplimiento.ppto.tarifa), real: fmtCOP(pptoData.cumplimiento.real.tarifa), pct: pptoData.cumplimiento.cumplimientoTarifa },
+                    { label: 'Ocupación', ppto: fmtPct(pptoData.cumplimiento.ppto.ocupacion), real: fmtPct(pptoData.cumplimiento.real.ocupacion), pct: pptoData.cumplimiento.ppto.ocupacion > 0 ? Math.round((pptoData.cumplimiento.real.ocupacion / pptoData.cumplimiento.ppto.ocupacion) * 100) : 0 },
+                  ].map((row, i) => (
+                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 0.8fr', gap: '0.5rem', fontSize: '0.78rem', padding: '0.6rem 0', borderBottom: i < 3 ? '1px solid var(--color-border)' : 'none', alignItems: 'center' }}>
+                      <div style={{ fontWeight: 500 }}>{row.label}</div>
+                      <div style={{ textAlign: 'right', color: 'var(--color-text-light)' }}>{row.ppto}</div>
+                      <div style={{ textAlign: 'right', fontWeight: 600 }}>{row.real}</div>
+                      <div style={{ textAlign: 'right', fontWeight: 700, color: colorCumplimiento(row.pct) }}>{row.pct}%</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ fontSize: '0.68rem', color: 'var(--color-text-light)', textAlign: 'center' }}>
+                  El "real" se calcula en vivo desde Cloudbeds noche por noche. Puede tardar unos segundos.
+                </div>
+              </>
+            )}
+
+            {/* Presupuesto anual completo */}
+            {!pptoLoading && pptoData?.meses?.length > 0 && (
+              <div style={{ background: 'white', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--shadow)' }}>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', marginBottom: '0.25rem' }}>Presupuesto anual 2026</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-light)', marginBottom: '1rem' }}>
+                  Total año: {fmtCOP(pptoData.totalPptoAnio)} · toca un mes para ver su detalle
+                </div>
+                {pptoData.meses.map((m, i) => {
+                  const maxVentas = Math.max(...pptoData.meses.map(x => x.pptoVentas))
+                  const pct = maxVentas > 0 ? Math.round((m.pptoVentas / maxVentas) * 100) : 0
+                  const mesStr = `2026-${String(m.mesNumero).padStart(2, '0')}`
+                  return (
+                    <div key={i} onClick={() => setPptoMes(mesStr)} style={{ marginBottom: '0.6rem', cursor: 'pointer', opacity: m.esMesActual ? 1 : 0.85 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
+                        <span style={{ fontSize: '0.74rem', fontWeight: m.esMesActual ? 700 : 400, color: m.esMesActual ? 'var(--color-primary)' : 'var(--color-text)' }}>
+                          {MESES_CORTO[m.mesNumero]} {m.esMesActual ? '←' : ''}
+                        </span>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 600 }}>{fmt(m.pptoVentas)} · {fmtPct(m.pptoOcupacion)}</span>
+                      </div>
+                      <div style={{ background: 'var(--color-bg)', borderRadius: 4, height: 6 }}>
+                        <div style={{ width: `${pct}%`, background: m.esMesActual ? 'var(--color-primary)' : '#cbd5e1', height: 6, borderRadius: 4 }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {!pptoLoading && !pptoData?.cumplimiento && (
+              <div style={{ background: 'white', borderRadius: 12, padding: '1.5rem', boxShadow: 'var(--shadow)', textAlign: 'center', color: 'var(--color-text-light)', fontSize: '0.82rem' }}>
+                No hay presupuesto cargado para este mes. Verifica que la base de Notion esté conectada a la integración WELLcomm App.
+              </div>
+            )}
+          </>
+        )}
+
         {/* COPILOT */}
         {tab === 'copilot' && (
           <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 180px)' }}>
@@ -475,7 +593,7 @@ export default function RevenueManager({ onBack }) {
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
                     {[
                       '¿Cuál debería ser mi tarifa este fin de semana?',
-                      '¿Estoy dejando dinero sobre la mesa?',
+                      '¿Voy bien respecto al presupuesto del mes?',
                       '¿Cuándo activar el BAR máximo?',
                       '¿Cómo mejorar el RevPAR este mes?',
                       'Analiza mi posición vs la competencia',
