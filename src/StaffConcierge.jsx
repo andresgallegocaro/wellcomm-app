@@ -9,7 +9,7 @@ const SUGGESTED_QUESTIONS = [
   '¿Cómo funciona el Revenue Management con PricePoint?',
 ]
 
-export default function StaffConcierge({ onBack, onDashboard, onBriefing, onNovedades, onHabitaciones, onSolicitudes, onChecklist, onRates, onRevenue, onMantenimiento }) {
+export default function StaffConcierge({ onBack, onDashboard, onBriefing, onNovedades, onHabitaciones, onSolicitudes, onChecklist, onRates, onRevenue, onMantenimiento, puedeRevenue }) {
   const [messages, setMessages] = useState([
     { role: 'assistant', text: '✳ Welcome to WELLcomm\n\n¿En qué puedo ayudarte hoy?' }
   ])
@@ -42,6 +42,7 @@ export default function StaffConcierge({ onBack, onDashboard, onBriefing, onNove
     }
   }
 
+  // Botones base (todos los ven). Los de revenue/dashboard se agregan solo si puedeRevenue.
   const navButtons = [
     { label: '💬 Chat', onClick: null, active: true },
     { label: '📋 Briefing', onClick: onBriefing },
@@ -50,9 +51,11 @@ export default function StaffConcierge({ onBack, onDashboard, onBriefing, onNove
     { label: '🛏️ Habitaciones', onClick: onHabitaciones },
     { label: '🔧 Mantenimiento', onClick: onMantenimiento },
     { label: '🛎️ Solicitudes', onClick: onSolicitudes },
-    { label: '💰 Revenue', onClick: onRevenue },
-    { label: '📈 Rates', onClick: onRates },
-    { label: '📊 Dashboard', onClick: onDashboard },
+    ...(puedeRevenue ? [
+      { label: '💰 Revenue', onClick: onRevenue },
+      { label: '📈 Rates', onClick: onRates },
+      { label: '📊 Dashboard', onClick: onDashboard },
+    ] : []),
   ]
 
   return (
