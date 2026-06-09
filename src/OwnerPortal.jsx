@@ -343,14 +343,16 @@ function GastosForm({ gastos, onChange, mes }) {
     } finally { setSaving(false) }
   }
 
-  const Input = ({ label, field, section }) => (
+  const Input = ({ label, field, section, readOnly, hint }) => (
     <div style={{ marginBottom: '0.75rem' }}>
       <label style={{ fontSize: '0.7rem', color: C.muted, display: 'block', marginBottom: '0.25rem' }}>{label}</label>
-      <div style={{ display: 'flex', alignItems: 'center', border: `1px solid ${C.light}`, borderRadius: 8, background: C.white, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center', border: `1px solid ${C.light}`, borderRadius: 8, background: readOnly ? '#f3f3f3' : C.white, overflow: 'hidden' }}>
         <span style={{ padding: '0.6rem 0.5rem', fontSize: '0.78rem', color: C.muted, borderRight: `1px solid ${C.light}` }}>COP</span>
         <input type="number" value={gastos[section][field] || ''} onChange={e => onChange(section, field, Number(e.target.value))}
-          placeholder="0" style={{ flex: 1, padding: '0.6rem 0.75rem', border: 'none', outline: 'none', fontSize: '0.88rem', fontFamily: 'var(--font-body)' }} />
+          readOnly={readOnly} disabled={readOnly}
+          placeholder="0" style={{ flex: 1, padding: '0.6rem 0.75rem', border: 'none', outline: 'none', fontSize: '0.88rem', fontFamily: 'var(--font-body)', background: 'transparent', color: readOnly ? C.muted : C.text }} />
       </div>
+      {hint && <div style={{ fontSize: '0.62rem', color: C.muted, marginTop: '0.2rem' }}>{hint}</div>}
     </div>
   )
 
@@ -358,8 +360,9 @@ function GastosForm({ gastos, onChange, mes }) {
     <div>
       <div style={{ background: C.white, borderRadius: 12, padding: '1.25rem', marginBottom: '1rem', border: `1px solid ${C.light}` }}>
         <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', marginBottom: '1rem', borderBottom: `1px solid ${C.light}`, paddingBottom: '0.5rem' }}>💰 Ingresos del mes</div>
-        <Input label="Habitaciones (Cloudbeds)" field="habitaciones" section="ingresos" />
-        <Input label="Terraza / F&B (Poster)" field="terraza" section="ingresos" />
+        <Input label="Habitaciones" field="habitaciones" section="ingresos" readOnly hint="Automático desde Cloudbeds" />
+        <Input label="Terraza / F&B" field="terraza" section="ingresos" hint="Ingreso manual cada mañana (acumulado del mes)" />
+        <Input label="SPA" field="spa" section="ingresos" hint="Ingreso manual cada mañana (acumulado del mes)" />
         <Input label="Upselling y servicios extra" field="upselling" section="ingresos" />
         <Input label="Otros ingresos" field="otrosIngresos" section="ingresos" />
       </div>
@@ -520,11 +523,12 @@ export default function OwnerPortal({ onBack, onRevenue }) {
                   <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', marginBottom: '1rem' }}>Por fuente</div>
                   {[
                     { label: '🏨 Habitaciones', val: data.gastos.ingresos.habitaciones, fuente: 'Cloudbeds' },
-                    { label: '🍕 Terraza / F&B', val: data.gastos.ingresos.terraza, fuente: 'Poster' },
+                    { label: '🍕 Terraza / F&B', val: data.gastos.ingresos.terraza, fuente: 'Manual' },
+                    { label: '💆 SPA', val: data.gastos.ingresos.spa, fuente: 'Manual' },
                     { label: '✨ Upselling', val: data.gastos.ingresos.upselling, fuente: 'Manual' },
                     { label: '📦 Otros', val: data.gastos.ingresos.otrosIngresos, fuente: 'Manual' },
                   ].map((item, i) => {
-                    const pct = r.totalIngresos > 0 ? Math.round((item.val / r.totalIngresos) * 100) : 0
+                    const pct = r.totalIngresos > 0 ? Math.round(((item.val || 0) / r.totalIngresos) * 100) : 0
                     return (
                       <div key={i} style={{ marginBottom: '0.75rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
@@ -565,8 +569,8 @@ export default function OwnerPortal({ onBack, onRevenue }) {
 
             {seccion === 'gastos' && (
               <div>
-                <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: 300, marginBottom: '0.25rem' }}>Gastos Manuales</div>
-                <div style={{ fontSize: '0.78rem', color: C.muted, marginBottom: '1.25rem' }}>Gastos recurrentes que no vienen de recibos PDF</div>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: 300, marginBottom: '0.25rem' }}>Gastos e Ingresos Manuales</div>
+                <div style={{ fontSize: '0.78rem', color: C.muted, marginBottom: '1.25rem' }}>Ingresos manuales (Terraza, SPA) y gastos recurrentes que no vienen de recibos PDF</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem', marginBottom: '1.25rem' }}>
                   {[
                     { label: 'Fijos', val: r.totalFijos, color: '#3498db' },
@@ -591,7 +595,8 @@ export default function OwnerPortal({ onBack, onRevenue }) {
                   <div style={{ color: C.primary, fontSize: '0.78rem', fontWeight: 600, marginBottom: '1rem', fontFamily: 'var(--font-display)', letterSpacing: '0.1em' }}>✳ CUENTA DE RESULTADOS · {mes.toUpperCase()}</div>
                   {[
                     { label: 'Ingresos habitaciones', val: data.gastos.ingresos.habitaciones, type: 'ingreso' },
-                    { label: 'Ingresos terraza (Poster)', val: data.gastos.ingresos.terraza, type: 'ingreso' },
+                    { label: 'Ingresos terraza (F&B)', val: data.gastos.ingresos.terraza, type: 'ingreso' },
+                    { label: 'Ingresos SPA', val: data.gastos.ingresos.spa, type: 'ingreso' },
                     { label: 'Upselling y otros', val: (data.gastos.ingresos.upselling || 0) + (data.gastos.ingresos.otrosIngresos || 0), type: 'ingreso' },
                     { label: '─── TOTAL INGRESOS', val: r.totalIngresos, type: 'subtotal' },
                     { label: 'Gastos fijos', val: -r.totalFijos, type: 'gasto' },
