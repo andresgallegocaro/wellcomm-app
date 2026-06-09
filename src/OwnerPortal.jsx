@@ -395,7 +395,7 @@ function GastosForm({ gastos, onChange, mes }) {
   )
 }
 
-export default function OwnerPortal({ onBack }) {
+export default function OwnerPortal({ onBack, onRevenue }) {
   const [seccion, setSeccion] = useState('resumen')
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -431,6 +431,9 @@ export default function OwnerPortal({ onBack }) {
             <div style={{ color: '#aaa', fontSize: 11, marginTop: 2 }}>{mes}</div>
           </div>
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            {onRevenue && (
+              <button onClick={onRevenue} style={{ background: C.primary, border: 'none', borderRadius: 8, color: C.dark, padding: '0.3rem 0.7rem', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 600 }}>📈 Revenue</button>
+            )}
             <input type="month" value={mes} onChange={e => setMes(e.target.value)}
               style={{ background: '#333', color: 'white', border: 'none', borderRadius: 8, padding: '0.3rem 0.5rem', fontSize: '0.72rem', fontFamily: 'var(--font-body)' }} />
             <button onClick={onBack} style={{ background: 'none', border: `1px solid #444`, borderRadius: 8, color: '#aaa', padding: '0.3rem 0.6rem', cursor: 'pointer', fontSize: '0.7rem' }}>← Inicio</button>
