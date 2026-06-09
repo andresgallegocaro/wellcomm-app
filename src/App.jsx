@@ -12,6 +12,7 @@ import RateIntelligence from './RateIntelligence.jsx'
 import RevenueManager from './RevenueManager.jsx'
 import AdminUsuarios from './AdminUsuarios.jsx'
 import Mantenimiento from './Mantenimiento.jsx'
+import Equipo from './Equipo.jsx'
 
 const SCREENS = {
   HOME: 'home', GUEST: 'guest', STAFF: 'staff',
@@ -19,7 +20,7 @@ const SCREENS = {
   STAFF_NOVEDADES: 'staff_novedades', STAFF_HABITACIONES: 'staff_habitaciones',
   STAFF_SOLICITUDES: 'staff_solicitudes', STAFF_CHECKLIST: 'staff_checklist',
   STAFF_RATES: 'staff_rates', STAFF_REVENUE: 'staff_revenue',
-  STAFF_MANTENIMIENTO: 'staff_mantenimiento',
+  STAFF_MANTENIMIENTO: 'staff_mantenimiento', STAFF_EQUIPO: 'staff_equipo',
   OWNER: 'owner', OWNER_REVENUE: 'owner_revenue', ADMIN: 'admin',
 }
 
@@ -48,12 +49,13 @@ export default function App() {
   if (screen === SCREENS.OWNER_REVENUE && puede('propietario') && puedeRevenue) return <RevenueManager onBack={go(SCREENS.OWNER)} />
   if (screen === SCREENS.ADMIN && puede('admin')) return <AdminUsuarios adminPin={sesion.adminPin} onBack={go(SCREENS.HOME)} />
 
-  if (screen === SCREENS.STAFF && puede('operacion')) return <StaffConcierge onBack={go(SCREENS.HOME)} onDashboard={go(SCREENS.STAFF_DASHBOARD)} onBriefing={go(SCREENS.STAFF_BRIEFING)} onNovedades={go(SCREENS.STAFF_NOVEDADES)} onHabitaciones={go(SCREENS.STAFF_HABITACIONES)} onSolicitudes={go(SCREENS.STAFF_SOLICITUDES)} onChecklist={go(SCREENS.STAFF_CHECKLIST)} onRates={go(SCREENS.STAFF_RATES)} onRevenue={go(SCREENS.STAFF_REVENUE)} onMantenimiento={go(SCREENS.STAFF_MANTENIMIENTO)} puedeRevenue={puedeRevenue} />
+  if (screen === SCREENS.STAFF && puede('operacion')) return <StaffConcierge onBack={go(SCREENS.HOME)} onDashboard={go(SCREENS.STAFF_DASHBOARD)} onBriefing={go(SCREENS.STAFF_BRIEFING)} onNovedades={go(SCREENS.STAFF_NOVEDADES)} onHabitaciones={go(SCREENS.STAFF_HABITACIONES)} onSolicitudes={go(SCREENS.STAFF_SOLICITUDES)} onChecklist={go(SCREENS.STAFF_CHECKLIST)} onRates={go(SCREENS.STAFF_RATES)} onRevenue={go(SCREENS.STAFF_REVENUE)} onMantenimiento={go(SCREENS.STAFF_MANTENIMIENTO)} onEquipo={go(SCREENS.STAFF_EQUIPO)} puedeRevenue={puedeRevenue} />
   if (screen === SCREENS.STAFF_DASHBOARD && puedeRevenue) return <Dashboard onBack={go(SCREENS.STAFF)} />
   if (screen === SCREENS.STAFF_BRIEFING) return <Briefing onBack={go(SCREENS.STAFF)} />
   if (screen === SCREENS.STAFF_NOVEDADES) return <Novedades onBack={go(SCREENS.STAFF)} />
   if (screen === SCREENS.STAFF_HABITACIONES) return <Habitaciones onBack={go(SCREENS.STAFF)} usuario={nombreUsuario} puedeAuditar={puedeAuditar} />
   if (screen === SCREENS.STAFF_MANTENIMIENTO) return <Mantenimiento onBack={go(SCREENS.STAFF)} usuario={nombreUsuario} puedePriorizar={puedeAuditar} />
+  if (screen === SCREENS.STAFF_EQUIPO) return <Equipo onBack={go(SCREENS.STAFF)} usuario={nombreUsuario} puedeEditar={puedeAuditar} />
   if (screen === SCREENS.STAFF_SOLICITUDES) return <Solicitudes onBack={go(SCREENS.STAFF)} />
   if (screen === SCREENS.STAFF_CHECKLIST) return <Checklist onBack={go(SCREENS.STAFF)} />
   if (screen === SCREENS.STAFF_RATES && puedeRevenue) return <RateIntelligence onBack={go(SCREENS.STAFF)} />
@@ -125,7 +127,7 @@ function LoginUnico({ onLogin }) {
           cursor: pin.length >= 4 ? 'pointer' : 'default', fontFamily: 'var(--font-body)'
         }}>{loading ? 'Verificando...' : 'Acceder →'}</button>
       </div>
-      <div style={{ fontSize: '0.68rem', color: C.muted, letterSpacing: '0.1em', marginTop: '2rem' }}>v2.7.0 · Gestionado por SOLARA Homes</div>
+      <div style={{ fontSize: '0.68rem', color: C.muted, letterSpacing: '0.1em', marginTop: '2rem' }}>v2.8.0 · Gestionado por SOLARA Homes</div>
     </div>
   )
 }
@@ -160,7 +162,7 @@ function HomeScreen({ sesion, puede, onSelect, onLogout }) {
 
       <button onClick={onLogout} style={{ background: 'none', border: '1px solid var(--color-text-light)', borderRadius: 10, color: 'var(--color-text-light)', padding: '0.5rem 1.2rem', cursor: 'pointer', fontSize: '0.78rem', fontFamily: 'var(--font-body)' }}>Cerrar sesión</button>
 
-      <div style={{ fontSize: '0.7rem', color: 'var(--color-text-light)', letterSpacing: '0.1em' }}>v2.7.0 · Gestionado por SOLARA Homes</div>
+      <div style={{ fontSize: '0.7rem', color: 'var(--color-text-light)', letterSpacing: '0.1em' }}>v2.8.0 · Gestionado por SOLARA Homes</div>
     </div>
   )
 }
