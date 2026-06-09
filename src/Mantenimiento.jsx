@@ -12,16 +12,19 @@ const ESTADO_INFO = {
   resuelto: { label: 'Resuelto', color: '#7EC8A0', emoji: '✅' },
 }
 
-const HABITACIONES = ['301','302','303','304','305','306','307','401','402','403','404','405','406','407','501','502','503','504','505','506','601','602','603','604','605']
+const HABITACIONES_FALLBACK = ['301','302','303','304','305','306','307','401','402','403','404','405','406','407','501','502','503','504','505','506','601','602','603','604','605']
+const ZONAS_FALLBACK = ['Spa', 'Terraza', 'Lobby', 'Pasillos y escalas', 'Ascensor', 'Cuarto de empleados', 'Oficina', 'Baños comunes', 'Fachada', 'Cocina', 'Otros']
 
 export default function Mantenimiento({ onBack, usuario, puedePriorizar }) {
   const [tareas, setTareas] = useState([])
   const [catalogo, setCatalogo] = useState({})
+  const [habitaciones, setHabitaciones] = useState(HABITACIONES_FALLBACK)
+  const [zonasComunes, setZonasComunes] = useState(ZONAS_FALLBACK)
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState('pendientes')
   const [updating, setUpdating] = useState(false)
   const [nuevo, setNuevo] = useState(false)
-  const [form, setForm] = useState({ habitacion: '301', categoria: '', descripcion: '' })
+  const [form, setForm] = useState({ tipoUbicacion: 'habitacion', habitacion: '301', zonaOtros: '', categoria: '', descripcion: '' })
   const [verHist, setVerHist] = useState(null)
 
   useEffect(() => { cargar() }, [])
@@ -33,7 +36,17 @@ export default function Mantenimiento({ onBack, usuario, puedePriorizar }) {
       const d = await res.json()
       setTareas(d.tareas || [])
       setCatalogo(d.catalogo || {})
+      if (d.habitaciones) setHabitaciones(d.habitaciones)
+      if (d.zonasComunes) setZonasComunes(d.zonasComunes)
     } finally { setLoading(false) }
+  }
+
+  function ubicacionFinal() {
+    if (form.tipoUbicacion === 'zona') {
+      if (form.habitacion === 'Otros') return (form.zonaOtros || '').trim() || 'Otros'
+      return form.habitacion
+    }
+    return form.habitacion
   }
 
   async function reportar() {
@@ -43,9 +56,16 @@ export default function Mantenimiento({ onBack, usuario, puedePriorizar }) {
       const desc = form.descripcion || form.categoria
       await fetch('/api/mantenimiento', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'reportar', habitacion: form.habitacion, categoria: form.categoria || 'General', descripcion: desc, usuario })
+        body: JSON.stringify({
+          action: 'reportar',
+          habitacion: ubicacionFinal(),
+          tipoUbicacion: form.tipoUbicacion,
+          categoria: form.categoria || 'General',
+          descripcion: desc,
+          usuario
+        })
       })
-      setForm({ habitacion: '301', categoria: '', descripcion: '' })
+      setForm({ tipoUbicacion: 'habitacion', habitacion: '301', zonaOtros: '', categoria: '', descripcion: '' })
       setNuevo(false)
       await cargar()
     } finally { setUpdating(false) }
@@ -93,9 +113,11 @@ export default function Mantenimiento({ onBack, usuario, puedePriorizar }) {
   else if (filtro === 'resueltas') lista = resueltas
   else if (filtro === 'sin_prioridad') lista = sinPriorizar
 
-  // Ordenar: primero por prioridad (alta>media>baja>sin), luego por fecha
   const ordenPrioridad = { alta: 0, media: 1, baja: 2, null: 3 }
   lista = [...lista].sort((a, b) => (ordenPrioridad[a.prioridad] ?? 3) - (ordenPrioridad[b.prioridad] ?? 3))
+
+  // Etiqueta de ubicación: "Hab. 301" o el nombre de la zona tal cual
+  const etiquetaUbicacion = (t) => t.tipoUbicacion === 'zona' ? t.habitacion : `Hab. ${t.habitacion}`
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--color-bg)', display: 'flex', flexDirection: 'column' }}>
@@ -135,12 +157,14 @@ export default function Mantenimiento({ onBack, usuario, puedePriorizar }) {
           lista.map(t => {
             const prio = t.prioridad ? PRIORIDAD_INFO[t.prioridad] : null
             const est = ESTADO_INFO[t.estado] || ESTADO_INFO.reportado
+            const esZona = t.tipoUbicacion === 'zona'
             return (
               <div key={t.id} style={{ background: 'var(--color-white)', borderRadius: 12, padding: '1rem', marginBottom: '0.75rem', border: `1px solid var(--color-border)`, borderLeft: `4px solid ${prio ? prio.color : '#ccc'}` }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                      <span style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: 600 }}>Hab. {t.habitacion}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
+                      <span style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: 600 }}>{etiquetaUbicacion(t)}</span>
+                      {esZona && <span style={{ fontSize: '0.58rem', background: '#EEF6FF', color: '#2980b9', padding: '0.1rem 0.45rem', borderRadius: 10, fontWeight: 600 }}>ÁREA COMÚN</span>}
                       <span style={{ fontSize: '0.62rem', background: '#f0f0f0', color: '#666', padding: '0.1rem 0.5rem', borderRadius: 10 }}>{t.categoria}</span>
                     </div>
                     <div style={{ fontSize: '0.85rem', color: 'var(--color-text)', marginBottom: '0.35rem' }}>{t.descripcion}</div>
@@ -157,7 +181,6 @@ export default function Mantenimiento({ onBack, usuario, puedePriorizar }) {
 
                 {/* Acciones */}
                 <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                  {/* Priorizar — solo dirección/líder */}
                   {puedePriorizar && t.estado !== 'resuelto' && (
                     <>
                       <span style={{ fontSize: '0.62rem', color: 'var(--color-text-light)' }}>Prioridad:</span>
@@ -172,7 +195,7 @@ export default function Mantenimiento({ onBack, usuario, puedePriorizar }) {
                   )}
                 </div>
 
-                {/* Estado (resolver) — cualquiera de operación */}
+                {/* Estado (resolver) */}
                 {t.estado !== 'resuelto' ? (
                   <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.5rem' }}>
                     {t.estado !== 'en_proceso' && (
@@ -186,7 +209,7 @@ export default function Mantenimiento({ onBack, usuario, puedePriorizar }) {
                   </div>
                 )}
 
-                {/* Historial + eliminar (dirección/líder) */}
+                {/* Historial + eliminar */}
                 {puedePriorizar && (
                   <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.6rem', paddingTop: '0.6rem', borderTop: '1px solid var(--color-border)' }}>
                     <button onClick={() => setVerHist(verHist === t.id ? null : t.id)} style={{ background: 'none', border: 'none', color: 'var(--color-text-light)', fontSize: '0.66rem', cursor: 'pointer' }}>
@@ -218,11 +241,41 @@ export default function Mantenimiento({ onBack, usuario, puedePriorizar }) {
           <div style={{ background: 'white', borderRadius: '20px 20px 0 0', padding: '1.5rem', width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', marginBottom: '1rem' }}>Reportar daño</div>
 
-            <label style={{ fontSize: '0.7rem', color: 'var(--color-text-light)', display: 'block', marginBottom: '0.25rem' }}>Habitación</label>
-            <select value={form.habitacion} onChange={e => setForm({ ...form, habitacion: e.target.value })}
-              style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--color-border)', borderRadius: 8, fontSize: '0.85rem', marginBottom: '0.75rem', boxSizing: 'border-box', background: 'white', fontFamily: 'var(--font-body)' }}>
-              {HABITACIONES.map(h => <option key={h} value={h}>Habitación {h}</option>)}
-            </select>
+            {/* Selector tipo de ubicación */}
+            <label style={{ fontSize: '0.7rem', color: 'var(--color-text-light)', display: 'block', marginBottom: '0.25rem' }}>Ubicación</label>
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+              <button onClick={() => setForm({ ...form, tipoUbicacion: 'habitacion', habitacion: '301', zonaOtros: '' })} style={{
+                flex: 1, background: form.tipoUbicacion === 'habitacion' ? 'var(--color-text)' : 'white',
+                color: form.tipoUbicacion === 'habitacion' ? 'white' : 'var(--color-text)',
+                border: `1px solid ${form.tipoUbicacion === 'habitacion' ? 'var(--color-text)' : 'var(--color-border)'}`,
+                borderRadius: 8, padding: '0.5rem', fontSize: '0.78rem', cursor: 'pointer', fontWeight: 600
+              }}>🛏️ Habitación</button>
+              <button onClick={() => setForm({ ...form, tipoUbicacion: 'zona', habitacion: zonasComunes[0], zonaOtros: '' })} style={{
+                flex: 1, background: form.tipoUbicacion === 'zona' ? 'var(--color-text)' : 'white',
+                color: form.tipoUbicacion === 'zona' ? 'white' : 'var(--color-text)',
+                border: `1px solid ${form.tipoUbicacion === 'zona' ? 'var(--color-text)' : 'var(--color-border)'}`,
+                borderRadius: 8, padding: '0.5rem', fontSize: '0.78rem', cursor: 'pointer', fontWeight: 600
+              }}>🏛️ Área común</button>
+            </div>
+
+            {/* Selector concreto según tipo */}
+            {form.tipoUbicacion === 'habitacion' ? (
+              <select value={form.habitacion} onChange={e => setForm({ ...form, habitacion: e.target.value })}
+                style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--color-border)', borderRadius: 8, fontSize: '0.85rem', marginBottom: '0.75rem', boxSizing: 'border-box', background: 'white', fontFamily: 'var(--font-body)' }}>
+                {habitaciones.map(h => <option key={h} value={h}>Habitación {h}</option>)}
+              </select>
+            ) : (
+              <>
+                <select value={form.habitacion} onChange={e => setForm({ ...form, habitacion: e.target.value })}
+                  style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--color-border)', borderRadius: 8, fontSize: '0.85rem', marginBottom: form.habitacion === 'Otros' ? '0.5rem' : '0.75rem', boxSizing: 'border-box', background: 'white', fontFamily: 'var(--font-body)' }}>
+                  {zonasComunes.map(z => <option key={z} value={z}>{z}</option>)}
+                </select>
+                {form.habitacion === 'Otros' && (
+                  <input value={form.zonaOtros} onChange={e => setForm({ ...form, zonaOtros: e.target.value })} placeholder="Especifica la zona (ej: Parqueadero)"
+                    style={{ width: '100%', padding: '0.6rem', border: '1px solid var(--color-border)', borderRadius: 8, fontSize: '0.85rem', marginBottom: '0.75rem', boxSizing: 'border-box', fontFamily: 'var(--font-body)' }} />
+                )}
+              </>
+            )}
 
             <label style={{ fontSize: '0.7rem', color: 'var(--color-text-light)', display: 'block', marginBottom: '0.25rem' }}>Tipo de incidencia</label>
             <div style={{ marginBottom: '0.75rem' }}>
