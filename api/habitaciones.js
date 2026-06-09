@@ -3,7 +3,6 @@ const KV_TOKEN = process.env.KV_REST_API_TOKEN
 
 // Las 25 habitaciones reales con su tipo y piso
 const HABITACIONES = [
-  // Piso 3
   { id: '301', tipo: 'Suite Ejecutiva', piso: 3 },
   { id: '302', tipo: 'Estándar', piso: 3 },
   { id: '303', tipo: 'Superior', piso: 3 },
@@ -11,7 +10,6 @@ const HABITACIONES = [
   { id: '305', tipo: 'Estándar', piso: 3 },
   { id: '306', tipo: 'Suite Ejecutiva', piso: 3 },
   { id: '307', tipo: 'Suite Ejecutiva', piso: 3 },
-  // Piso 4
   { id: '401', tipo: 'Suite Ejecutiva', piso: 4 },
   { id: '402', tipo: 'Estándar', piso: 4 },
   { id: '403', tipo: 'Superior', piso: 4 },
@@ -19,19 +17,32 @@ const HABITACIONES = [
   { id: '405', tipo: 'Estándar', piso: 4 },
   { id: '406', tipo: 'Suite Ejecutiva', piso: 4 },
   { id: '407', tipo: 'Suite Ejecutiva', piso: 4 },
-  // Piso 5
   { id: '501', tipo: 'Suite Ejecutiva', piso: 5 },
   { id: '502', tipo: 'Estándar', piso: 5 },
   { id: '503', tipo: 'Superior', piso: 5 },
   { id: '504', tipo: 'Estándar', piso: 5 },
   { id: '505', tipo: 'Estándar', piso: 5 },
   { id: '506', tipo: 'Suite Presidencial', piso: 5 },
-  // Piso 6
   { id: '601', tipo: 'Suite Ejecutiva', piso: 6 },
   { id: '602', tipo: 'Estándar', piso: 6 },
   { id: '603', tipo: 'Superior', piso: 6 },
   { id: '604', tipo: 'Estándar', piso: 6 },
   { id: '605', tipo: 'Suite Presidencial', piso: 6 },
+]
+
+// Zonas comunes (aseo manual, no vienen de Cloudbeds)
+const ZONAS_COMUNES = [
+  { id: 'spa', nombre: 'Spa' },
+  { id: 'terraza', nombre: 'Terraza' },
+  { id: 'lobby', nombre: 'Lobby' },
+  { id: 'pasillos', nombre: 'Pasillos y escalas' },
+  { id: 'ascensor', nombre: 'Ascensor' },
+  { id: 'empleados', nombre: 'Cuarto de empleados' },
+  { id: 'oficina', nombre: 'Oficina' },
+  { id: 'banos', nombre: 'Baños comunes' },
+  { id: 'fachada', nombre: 'Fachada' },
+  { id: 'cocina', nombre: 'Cocina' },
+  { id: 'otros', nombre: 'Otros' },
 ]
 
 async function kvGet(key) {
@@ -144,10 +155,8 @@ async function getMovimientosCloudbeds() {
 }
 
 function ahoraColombia() {
-  // Hora local de Colombia (UTC-5)
   const now = new Date(Date.now() - 5 * 3600000)
-  const hora = now.toISOString().slice(11, 16) // HH:MM
-  return hora
+  return now.toISOString().slice(11, 16) // HH:MM
 }
 
 export default async function handler(req, res) {
@@ -160,26 +169,50 @@ export default async function handler(req, res) {
 
     const hoy = new Date().toISOString().slice(0, 10)
 
-    // ── POST: actualizar estado manual + registrar quién y cuándo ──
+    // ── POST ──
     if (req.method === 'POST') {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body
 
-      // Subaccion: pedir el historial de una habitación
+      // Historial de una habitación
       if (body.action === 'historial') {
         const historiales = await kvGet('habitaciones_historial') || {}
         return res.status(200).json({ ok: true, historial: historiales[body.habitacionId] || [] })
       }
 
+      // Historial de una zona común
+      if (body.action === 'historial_zona') {
+        const historiales = await kvGet('areas_comunes_historial') || {}
+        return res.status(200).json({ ok: true, historial: historiales[body.zonaId] || [] })
+      }
+
+      // Actualizar estado de aseo de una zona común
+      if (body.action === 'estado_zona') {
+        const { zonaId, estado, usuario } = body
+        const autor = usuario || 'Desconocido'
+        const hora = ahoraColombia()
+
+        const estados = await kvGet('areas_comunes_estados') || {}
+        estados[zonaId] = { estado, fecha: hoy, autor, hora, actualizado: new Date().toISOString() }
+        await kvSet('areas_comunes_estados', estados)
+
+        const historiales = await kvGet('areas_comunes_historial') || {}
+        const histZona = historiales[zonaId] || []
+        histZona.unshift({ estado, autor, hora, fecha: hoy, ts: new Date().toISOString() })
+        historiales[zonaId] = histZona.slice(0, 50)
+        await kvSet('areas_comunes_historial', historiales)
+
+        return res.status(200).json({ ok: true })
+      }
+
+      // Actualizar estado manual de una habitación (lógica original)
       const { habitacionId, estado, usuario } = body
       const autor = usuario || 'Desconocido'
       const hora = ahoraColombia()
 
-      // Guardar estado actual
       const estados = await kvGet('habitaciones_estados') || {}
       estados[habitacionId] = { estado, fecha: hoy, manual: true, autor, hora, actualizado: new Date().toISOString() }
       await kvSet('habitaciones_estados', estados)
 
-      // Agregar al historial (guardamos los últimos 50 por habitación)
       const historiales = await kvGet('habitaciones_historial') || {}
       const histHab = historiales[habitacionId] || []
       histHab.unshift({ estado, autor, hora, fecha: hoy, ts: new Date().toISOString() })
@@ -189,10 +222,11 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true })
     }
 
-    // ── GET: devolver las 25 habitaciones con estado + movimiento + autor ──
-    const [estadosGuardados, movimientos] = await Promise.all([
+    // ── GET: 25 habitaciones + zonas comunes ──
+    const [estadosGuardados, movimientos, estadosZonas] = await Promise.all([
       kvGet('habitaciones_estados'),
-      getMovimientosCloudbeds()
+      getMovimientosCloudbeds(),
+      kvGet('areas_comunes_estados'),
     ])
 
     const estados = estadosGuardados || {}
@@ -214,7 +248,17 @@ export default async function handler(req, res) {
       return { ...h, estado, movimiento, autor, hora }
     })
 
-    return res.status(200).json({ habitaciones, fecha: hoy })
+    // Zonas comunes: estado de aseo manual; si es de hoy se respeta, si no, "limpia" por defecto
+    const ez = estadosZonas || {}
+    const zonas = ZONAS_COMUNES.map(z => {
+      const g = ez[z.id]
+      if (g && g.fecha === hoy) {
+        return { ...z, estado: g.estado, autor: g.autor || null, hora: g.hora || null }
+      }
+      return { ...z, estado: 'limpia', autor: null, hora: null }
+    })
+
+    return res.status(200).json({ habitaciones, zonas, fecha: hoy })
 
   } catch (error) {
     return res.status(500).json({ error: error.message })
