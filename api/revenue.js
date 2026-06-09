@@ -1,10 +1,39 @@
 const KV_URL = process.env.KV_REST_API_URL
 const KV_TOKEN = process.env.KV_REST_API_TOKEN
 
-// Bases de presupuesto en Notion. Configurables por env var para clonar la app.
-const PRESUPUESTO_DB_ID = process.env.PRESUPUESTO_DB_ID || 'd5cbf52988c748128fef6aaa46b9332e'
-const PRESUPUESTO_AB_DB_ID = process.env.PRESUPUESTO_AB_DB_ID || '464bb9a1-820e-4915-b1fa-b766c7a64443'
-const PRESUPUESTO_SPA_DB_ID = process.env.PRESUPUESTO_SPA_DB_ID || '45d1c4f0-13ba-49ce-b47d-2fdd4d6499bf'
+// ════════════════════════════════════════════════════════════════════
+// PRESUPUESTO OFICIAL 2026 — APROBADO POR ACCIONISTAS
+// Fuente: P&L presupuestal oficial WELLcomm. Cifras en COP.
+// Para clonar la app a otro hotel, reemplaza estos valores.
+// ════════════════════════════════════════════════════════════════════
+const PRESUPUESTO_OFICIAL_2026 = {
+  habitaciones: {
+    1:  { ventas: 204491089, adr: 420000 },
+    2:  { ventas: 226040842, adr: 430000 },
+    3:  { ventas: 180395173, adr: 400000 },
+    4:  { ventas: 190432673, adr: 410000 },
+    5:  { ventas: 173949505, adr: 395000 },
+    6:  { ventas: 175066089, adr: 398000 },
+    7:  { ventas: 211789258, adr: 415000 },
+    8:  { ventas: 264199010, adr: 450000 },
+    9:  { ventas: 172432673, adr: 400000 },
+    10: { ventas: 208786510, adr: 415000 },
+    11: { ventas: 208324010, adr: 415000 },
+    12: { ventas: 235291510, adr: 440000 },
+  },
+  ab: {
+    1: 129657321, 2: 140672397, 3: 123993103, 4: 126634612,
+    5: 125427408, 6: 120922366, 7: 131453924, 8: 148562909,
+    9: 122697306, 10: 128356361, 11: 133689294, 12: 148087989,
+  },
+  spa: {
+    1: 82140500, 2: 83070000, 3: 86229000, 4: 82621500,
+    5: 90424750, 6: 91208000, 7: 91780000, 8: 113893000,
+    9: 96391750, 10: 82810000, 11: 84864000, 12: 89492000,
+  },
+}
+
+const DIAS_MES_2026 = { 1:31, 2:28, 3:31, 4:30, 5:31, 6:30, 7:31, 8:31, 9:30, 10:31, 11:30, 12:31 }
 
 async function kvGet(key) {
   try {
@@ -59,83 +88,36 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms))
 
 const MESES_NOMBRE = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 
-// ── Lee el presupuesto 2026 de Notion (habitaciones), con caché de 10 min ──
-async function getPresupuesto(NOTION_TOKEN) {
-  const cache = await kvGet('presupuesto_cache')
-  if (cache && cache.ts && (Date.now() - cache.ts < 10 * 60 * 1000)) {
-    return cache.meses
-  }
-  try {
-    const res = await fetch(`https://api.notion.com/v1/databases/${PRESUPUESTO_DB_ID}/query`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${NOTION_TOKEN}`,
-        'Notion-Version': '2022-06-28',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ page_size: 100 })
-    })
-    const data = await res.json()
-    if (!data.results) return {}
-
-    const num = (p) => (p && typeof p.number === 'number') ? p.number : 0
-    const meses = {}
-    for (const page of data.results) {
-      const props = page.properties || {}
-      const mesNum = num(props.MesNumero)
-      if (!mesNum) continue
-      meses[mesNum] = {
-        mes: MESES_NOMBRE[mesNum],
-        mesNumero: mesNum,
-        habVendidas: num(props.HabVendidasPpto),
-        tarifa: num(props.TarifaPpto),
-        ventas: num(props.VentasAlojamientoPpto),
-        ocupacion: num(props.OcupacionPpto),
-      }
+// ── Presupuesto de habitaciones (oficial, desde código) ──
+function getPresupuesto() {
+  const meses = {}
+  for (let m = 1; m <= 12; m++) {
+    const o = PRESUPUESTO_OFICIAL_2026.habitaciones[m]
+    if (!o) continue
+    const dias = DIAS_MES_2026[m]
+    const habVendidas = o.adr > 0 ? Math.round(o.ventas / o.adr) : 0
+    const ocupacion = (25 * dias) > 0 ? (habVendidas / (25 * dias)) : 0
+    meses[m] = {
+      mes: MESES_NOMBRE[m],
+      mesNumero: m,
+      habVendidas,
+      tarifa: o.adr,
+      ventas: o.ventas,
+      ocupacion,
     }
-    await kvSet('presupuesto_cache', { meses, ts: Date.now() })
-    return meses
-  } catch (e) {
-    return {}
   }
+  return meses
 }
 
-// ── Lee un presupuesto simple (mes → ventas) de una base de Notion. Genérico para A&B y Spa. ──
-async function getPresupuestoSimple(NOTION_TOKEN, dbId, propVentas, cacheKey) {
-  const cache = await kvGet(cacheKey)
-  if (cache && cache.ts && (Date.now() - cache.ts < 10 * 60 * 1000)) {
-    return cache.meses
+// ── Presupuesto simple A&B / Spa (oficial, desde código) ──
+function getPresupuestoSimple(linea) {
+  const fuente = PRESUPUESTO_OFICIAL_2026[linea] || {}
+  const meses = {}
+  for (let m = 1; m <= 12; m++) {
+    if (fuente[m] === undefined) continue
+    meses[m] = { mes: MESES_NOMBRE[m], mesNumero: m, ventas: fuente[m] }
   }
-  try {
-    const res = await fetch(`https://api.notion.com/v1/databases/${dbId}/query`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${NOTION_TOKEN}`,
-        'Notion-Version': '2022-06-28',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ page_size: 100 })
-    })
-    const data = await res.json()
-    if (!data.results) return {}
-
-    const num = (p) => (p && typeof p.number === 'number') ? p.number : 0
-    const meses = {}
-    for (const page of data.results) {
-      const props = page.properties || {}
-      const mesNum = num(props.MesNumero)
-      if (!mesNum) continue
-      meses[mesNum] = {
-        mes: MESES_NOMBRE[mesNum],
-        mesNumero: mesNum,
-        ventas: num(props[propVentas]),
-      }
-    }
-    await kvSet(cacheKey, { meses, ts: Date.now() })
-    return meses
-  } catch (e) {
-    return {}
-  }
+  return meses
 }
 
 // ── Lee el REAL de Cloudbeds para un mes (YYYY-MM), noche por noche ──
@@ -338,14 +320,13 @@ export default async function handler(req, res) {
       ? (typeof req.body === 'string' ? JSON.parse(req.body) : req.body)
       : {}
 
-    const NOTION_TOKEN = process.env.NOTION_TOKEN
     const token = await getFreshToken()
     const headers = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
     const today = new Date().toISOString().split('T')[0]
 
     // ── GET con accion=presupuesto: comparar presupuesto vs real (HABITACIONES) ──
     if (req.method === 'GET' && req.query.accion === 'presupuesto') {
-      const presupuesto = await getPresupuesto(NOTION_TOKEN)
+      const presupuesto = getPresupuesto()
       const mesPedido = req.query.mes || today.slice(0, 7)
 
       const real = await getRealMes(headers, mesPedido)
@@ -391,11 +372,9 @@ export default async function handler(req, res) {
       const mesPedido = req.query.mes || today.slice(0, 7)
       const mesNum = Number(mesPedido.split('-')[1])
 
-      const [pptoHab, pptoAB, pptoSpa] = await Promise.all([
-        getPresupuesto(NOTION_TOKEN),
-        getPresupuestoSimple(NOTION_TOKEN, PRESUPUESTO_AB_DB_ID, 'VentasABPpto', 'presupuesto_ab_cache'),
-        getPresupuestoSimple(NOTION_TOKEN, PRESUPUESTO_SPA_DB_ID, 'VentasSpaPpto', 'presupuesto_spa_cache'),
-      ])
+      const pptoHab = getPresupuesto()
+      const pptoAB = getPresupuestoSimple('ab')
+      const pptoSpa = getPresupuestoSimple('spa')
 
       const [realHab, gastosMes] = await Promise.all([
         getRealMes(headers, mesPedido),
@@ -613,21 +592,18 @@ export default async function handler(req, res) {
           recsHoy[tipo] = calcularBARRecomendado(tipo, ocupacionActual, today, preciosCompArray)
         })
 
-        // Presupuestos del mes actual para el Copilot (3 líneas)
         const mesActualNum = Number(today.slice(5, 7))
-        const [presupuesto, pptoAB, pptoSpa, gastosMes] = await Promise.all([
-          getPresupuesto(NOTION_TOKEN),
-          getPresupuestoSimple(NOTION_TOKEN, PRESUPUESTO_AB_DB_ID, 'VentasABPpto', 'presupuesto_ab_cache'),
-          getPresupuestoSimple(NOTION_TOKEN, PRESUPUESTO_SPA_DB_ID, 'VentasSpaPpto', 'presupuesto_spa_cache'),
-          kvGet(`gastos_${today.slice(0, 7)}`),
-        ])
+        const presupuesto = getPresupuesto()
+        const pptoAB = getPresupuestoSimple('ab')
+        const pptoSpa = getPresupuestoSimple('spa')
+        const gastosMes = await kvGet(`gastos_${today.slice(0, 7)}`)
         const pptoMes = presupuesto[mesActualNum]
         const ingManual = gastosMes?.ingresos || {}
         let bloquePresupuesto = ''
         if (pptoMes) {
           bloquePresupuesto = `
 
-PRESUPUESTO DE ${pptoMes.mes.toUpperCase()} 2026 (objetivo del mes):
+PRESUPUESTO OFICIAL DE ${pptoMes.mes.toUpperCase()} 2026 (aprobado por accionistas):
 - HABITACIONES: ventas $${pptoMes.ventas.toLocaleString('es-CO')} COP | ${pptoMes.habVendidas} hab-noche | tarifa $${pptoMes.tarifa.toLocaleString('es-CO')} | ocup. ${(pptoMes.ocupacion * 100).toFixed(1)}%
 - A&B / TERRAZA: ventas presupuestadas $${(pptoAB[mesActualNum]?.ventas || 0).toLocaleString('es-CO')} COP | real registrado $${(Number(ingManual.terraza) || 0).toLocaleString('es-CO')} COP
 - SPA: ventas presupuestadas $${(pptoSpa[mesActualNum]?.ventas || 0).toLocaleString('es-CO')} COP | real registrado $${(Number(ingManual.spa) || 0).toLocaleString('es-CO')} COP
