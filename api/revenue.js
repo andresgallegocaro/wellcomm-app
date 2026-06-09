@@ -1,8 +1,10 @@
 const KV_URL = process.env.KV_REST_API_URL
 const KV_TOKEN = process.env.KV_REST_API_TOKEN
 
-// Base "Presupuesto 2026 (Revenue)" en Notion. Configurable por env var para clonar la app.
+// Bases de presupuesto en Notion. Configurables por env var para clonar la app.
 const PRESUPUESTO_DB_ID = process.env.PRESUPUESTO_DB_ID || 'd5cbf52988c748128fef6aaa46b9332e'
+const PRESUPUESTO_AB_DB_ID = process.env.PRESUPUESTO_AB_DB_ID || 'f058c900-6ae9-44fa-ab38-b15c31996d01'
+const PRESUPUESTO_SPA_DB_ID = process.env.PRESUPUESTO_SPA_DB_ID || '27d75544-3cc0-4a34-98c6-4720c50dbf69'
 
 async function kvGet(key) {
   try {
@@ -57,7 +59,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms))
 
 const MESES_NOMBRE = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 
-// ── Lee el presupuesto 2026 de Notion, con caché de 10 min ──
+// ── Lee el presupuesto 2026 de Notion (habitaciones), con caché de 10 min ──
 async function getPresupuesto(NOTION_TOKEN) {
   const cache = await kvGet('presupuesto_cache')
   if (cache && cache.ts && (Date.now() - cache.ts < 10 * 60 * 1000)) {
@@ -98,6 +100,44 @@ async function getPresupuesto(NOTION_TOKEN) {
   }
 }
 
+// ── Lee un presupuesto simple (mes → ventas) de una base de Notion. Genérico para A&B y Spa. ──
+async function getPresupuestoSimple(NOTION_TOKEN, dbId, propVentas, cacheKey) {
+  const cache = await kvGet(cacheKey)
+  if (cache && cache.ts && (Date.now() - cache.ts < 10 * 60 * 1000)) {
+    return cache.meses
+  }
+  try {
+    const res = await fetch(`https://api.notion.com/v1/databases/${dbId}/query`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${NOTION_TOKEN}`,
+        'Notion-Version': '2022-06-28',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ page_size: 100 })
+    })
+    const data = await res.json()
+    if (!data.results) return {}
+
+    const num = (p) => (p && typeof p.number === 'number') ? p.number : 0
+    const meses = {}
+    for (const page of data.results) {
+      const props = page.properties || {}
+      const mesNum = num(props.MesNumero)
+      if (!mesNum) continue
+      meses[mesNum] = {
+        mes: MESES_NOMBRE[mesNum],
+        mesNumero: mesNum,
+        ventas: num(props[propVentas]),
+      }
+    }
+    await kvSet(cacheKey, { meses, ts: Date.now() })
+    return meses
+  } catch (e) {
+    return {}
+  }
+}
+
 // ── Lee el REAL de Cloudbeds para un mes (YYYY-MM), noche por noche ──
 async function getRealMes(headers, anioMes) {
   const [anio, mes] = anioMes.split('-').map(Number)
@@ -105,7 +145,6 @@ async function getRealMes(headers, anioMes) {
   const ultimoDiaNum = new Date(anio, mes, 0).getDate()
   const ultimoDia = `${anioMes}-${String(ultimoDiaNum).padStart(2, '0')}`
 
-  // Traer reservas que se solapan con el mes
   let reservas = []
   try {
     for (let page = 1; page <= 6; page++) {
@@ -116,13 +155,11 @@ async function getRealMes(headers, anioMes) {
     }
   } catch (e) {}
 
-  // Filtrar estados válidos
   const validas = reservas.filter(r => {
     const s = (r.status || '').toLowerCase()
     return ['checked_in', 'checked_out', 'confirmed'].includes(s)
   })
 
-  // Traer detalle en lotes para sumar noche por noche
   let ingresos = 0
   let nochesVendidas = 0
   for (let i = 0; i < validas.length; i += 15) {
@@ -306,17 +343,15 @@ export default async function handler(req, res) {
     const headers = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
     const today = new Date().toISOString().split('T')[0]
 
-    // ── GET con accion=presupuesto: comparar presupuesto vs real ──
+    // ── GET con accion=presupuesto: comparar presupuesto vs real (HABITACIONES) ──
     if (req.method === 'GET' && req.query.accion === 'presupuesto') {
       const presupuesto = await getPresupuesto(NOTION_TOKEN)
-      const mesPedido = req.query.mes || today.slice(0, 7) // YYYY-MM
+      const mesPedido = req.query.mes || today.slice(0, 7)
 
-      // Real del mes pedido (lectura en vivo de Cloudbeds)
       const real = await getRealMes(headers, mesPedido)
       const mesNum = Number(mesPedido.split('-')[1])
       const ppto = presupuesto[mesNum] || null
 
-      // Resumen anual: presupuesto de los 12 meses (real solo del mes pedido para no saturar)
       const meses = []
       for (let m = 1; m <= 12; m++) {
         const p = presupuesto[m]
@@ -332,7 +367,6 @@ export default async function handler(req, res) {
         })
       }
 
-      // Cumplimiento del mes pedido
       let cumplimiento = null
       if (ppto) {
         cumplimiento = {
@@ -350,6 +384,83 @@ export default async function handler(req, res) {
       const totalPptoAnio = Object.values(presupuesto).reduce((s, m) => s + (m.ventas || 0), 0)
 
       return res.status(200).json({ cumplimiento, meses, totalPptoAnio, mesConsultado: mesPedido })
+    }
+
+    // ── GET con accion=presupuesto_lineas: 3 líneas (Habitaciones + A&B + Spa) ──
+    if (req.method === 'GET' && req.query.accion === 'presupuesto_lineas') {
+      const mesPedido = req.query.mes || today.slice(0, 7)
+      const mesNum = Number(mesPedido.split('-')[1])
+
+      // Presupuestos (Notion)
+      const [pptoHab, pptoAB, pptoSpa] = await Promise.all([
+        getPresupuesto(NOTION_TOKEN),
+        getPresupuestoSimple(NOTION_TOKEN, PRESUPUESTO_AB_DB_ID, 'VentasABPpto', 'presupuesto_ab_cache'),
+        getPresupuestoSimple(NOTION_TOKEN, PRESUPUESTO_SPA_DB_ID, 'VentasSpaPpto', 'presupuesto_spa_cache'),
+      ])
+
+      // Reales: habitaciones de Cloudbeds; A&B y Spa del KV de gastos (OwnerPortal)
+      const [realHab, gastosMes] = await Promise.all([
+        getRealMes(headers, mesPedido),
+        kvGet(`gastos_${mesPedido}`),
+      ])
+      const ingManual = gastosMes?.ingresos || {}
+      const realABVentas = Number(ingManual.terraza) || 0
+      const realSpaVentas = Number(ingManual.spa) || 0
+
+      const pptoHabVentas = pptoHab[mesNum]?.ventas || 0
+      const pptoABVentas = pptoAB[mesNum]?.ventas || 0
+      const pptoSpaVentas = pptoSpa[mesNum]?.ventas || 0
+
+      const pct = (real, ppto) => ppto > 0 ? Math.round((real / ppto) * 100) : 0
+
+      const lineas = [
+        {
+          id: 'habitaciones', label: '🏨 Habitaciones', fuente: 'Cloudbeds (en vivo)',
+          ppto: pptoHabVentas, real: realHab.ventas, cumplimiento: pct(realHab.ventas, pptoHabVentas),
+        },
+        {
+          id: 'ab', label: '🍽️ A&B / Terraza', fuente: 'Ingreso manual (Portal)',
+          ppto: pptoABVentas, real: realABVentas, cumplimiento: pct(realABVentas, pptoABVentas),
+        },
+        {
+          id: 'spa', label: '💆 Spa', fuente: 'Ingreso manual (Portal)',
+          ppto: pptoSpaVentas, real: realSpaVentas, cumplimiento: pct(realSpaVentas, pptoSpaVentas),
+        },
+      ]
+
+      const totalPpto = lineas.reduce((s, l) => s + l.ppto, 0)
+      const totalReal = lineas.reduce((s, l) => s + l.real, 0)
+
+      // Resumen anual de las 3 líneas (solo presupuesto)
+      const anual = []
+      for (let m = 1; m <= 12; m++) {
+        const h = pptoHab[m]?.ventas || 0
+        const a = pptoAB[m]?.ventas || 0
+        const s = pptoSpa[m]?.ventas || 0
+        if (h === 0 && a === 0 && s === 0) continue
+        anual.push({
+          mesNumero: m, mes: MESES_NOMBRE[m],
+          habitaciones: h, ab: a, spa: s, total: h + a + s,
+          esMesActual: m === mesNum,
+        })
+      }
+
+      const totalAnioHab = Object.values(pptoHab).reduce((s, m) => s + (m.ventas || 0), 0)
+      const totalAnioAB = Object.values(pptoAB).reduce((s, m) => s + (m.ventas || 0), 0)
+      const totalAnioSpa = Object.values(pptoSpa).reduce((s, m) => s + (m.ventas || 0), 0)
+
+      return res.status(200).json({
+        mesConsultado: mesPedido,
+        mes: MESES_NOMBRE[mesNum],
+        lineas,
+        totalPpto, totalReal,
+        cumplimientoTotal: pct(totalReal, totalPpto),
+        anual,
+        totalesAnio: {
+          habitaciones: totalAnioHab, ab: totalAnioAB, spa: totalAnioSpa,
+          total: totalAnioHab + totalAnioAB + totalAnioSpa,
+        },
+      })
     }
 
     let ocupacionActual = 50
@@ -505,20 +616,25 @@ export default async function handler(req, res) {
           recsHoy[tipo] = calcularBARRecomendado(tipo, ocupacionActual, today, preciosCompArray)
         })
 
-        // Presupuesto del mes actual para el Copilot
-        const presupuesto = await getPresupuesto(NOTION_TOKEN)
+        // Presupuestos del mes actual para el Copilot (3 líneas)
         const mesActualNum = Number(today.slice(5, 7))
+        const [presupuesto, pptoAB, pptoSpa, gastosMes] = await Promise.all([
+          getPresupuesto(NOTION_TOKEN),
+          getPresupuestoSimple(NOTION_TOKEN, PRESUPUESTO_AB_DB_ID, 'VentasABPpto', 'presupuesto_ab_cache'),
+          getPresupuestoSimple(NOTION_TOKEN, PRESUPUESTO_SPA_DB_ID, 'VentasSpaPpto', 'presupuesto_spa_cache'),
+          kvGet(`gastos_${today.slice(0, 7)}`),
+        ])
         const pptoMes = presupuesto[mesActualNum]
+        const ingManual = gastosMes?.ingresos || {}
         let bloquePresupuesto = ''
         if (pptoMes) {
           bloquePresupuesto = `
 
 PRESUPUESTO DE ${pptoMes.mes.toUpperCase()} 2026 (objetivo del mes):
-- Ventas alojamiento presupuestadas: $${pptoMes.ventas.toLocaleString('es-CO')} COP
-- Habitaciones-noche presupuestadas: ${pptoMes.habVendidas}
-- Tarifa presupuestada: $${pptoMes.tarifa.toLocaleString('es-CO')} COP
-- Ocupación presupuestada: ${(pptoMes.ocupacion * 100).toFixed(1)}%
-Compara el ritmo real contra este presupuesto cuando sea relevante.`
+- HABITACIONES: ventas $${pptoMes.ventas.toLocaleString('es-CO')} COP | ${pptoMes.habVendidas} hab-noche | tarifa $${pptoMes.tarifa.toLocaleString('es-CO')} | ocup. ${(pptoMes.ocupacion * 100).toFixed(1)}%
+- A&B / TERRAZA: ventas presupuestadas $${(pptoAB[mesActualNum]?.ventas || 0).toLocaleString('es-CO')} COP | real registrado $${(Number(ingManual.terraza) || 0).toLocaleString('es-CO')} COP
+- SPA: ventas presupuestadas $${(pptoSpa[mesActualNum]?.ventas || 0).toLocaleString('es-CO')} COP | real registrado $${(Number(ingManual.spa) || 0).toLocaleString('es-CO')} COP
+Compara el ritmo real contra estos presupuestos cuando sea relevante. El real de A&B y Spa se ingresa manualmente cada día en el Portal del Propietario.`
         }
 
         const contexto = `Eres el Revenue Manager senior de WELLcomm Spa & Hotel, boutique wellness de 25 habitaciones en Manila, Medellín, Colombia. Gestionado por SOLARA Homes.
