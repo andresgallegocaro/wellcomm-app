@@ -6,7 +6,7 @@ const ADMIN_PIN = '1450'
 const NIVELES = {
   direccion: { label: 'Dirección', acceso: ['dashboard', 'revenue', 'propietario', 'operacion', 'admin', 'auditoria'] },
   lider: { label: 'Líder', acceso: ['operacion', 'auditoria', 'revenue', 'dashboard'] },
-  propietario: { label: 'Propietario', acceso: ['propietario'] },
+  propietario: { label: 'Propietario', acceso: ['propietario', 'revenue'] },
   staff: { label: 'Staff', acceso: ['operacion'] },
 }
 
