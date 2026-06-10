@@ -24,8 +24,11 @@ async function kvSet(key, value) {
   })
 }
 
-// Equipo de Front Desk (anfitriones)
-const FRONT_EMPLEADOS = ['Rafa', 'Carlos', 'Kate', 'Valentina']
+// Equipos por área (un solo lugar manda)
+const FRONT_EMPLEADOS = ['Rafa', 'Carlos', 'Kate', 'Estefanía']
+const HOUSEKEEPING_EMPLEADOS = ['Marcela', 'Hilda', 'Johana']
+const MANTENIMIENTO_EMPLEADOS = ['Jhonatan', 'Externo']
+const SPA_EMPLEADOS = ['Amalia', 'Valentina', 'Catalina', 'Leidy']
 
 // Apertura y relevo: común a los tres turnos (Sección 3.1 del Playbook)
 const FRONT_APERTURA = [
@@ -63,7 +66,7 @@ const TAREAS = {
       },
       housekeeping: {
         label: 'Housekeeping', emoji: '🧹',
-        empleados: ['Raisa', 'Beatriz', 'Aracelly', 'Carolina', 'Marcela'],
+        empleados: HOUSEKEEPING_EMPLEADOS,
         tareas: [
           'Briefing con Marcela — asignación de habitaciones por prioridad',
           'Priorizar limpieza de habitaciones con check-out',
@@ -79,7 +82,7 @@ const TAREAS = {
       },
       mantenimiento: {
         label: 'Mantenimiento', emoji: '🔧',
-        empleados: ['Andrés', 'Jhonatan'],
+        empleados: MANTENIMIENTO_EMPLEADOS,
         tareas: [
           'Inspección matutina de equipos: A/C, ascensores, iluminación',
           'Revisar A/C de habitaciones con check-in del día',
@@ -92,7 +95,7 @@ const TAREAS = {
       },
       spa: {
         label: 'Spa — Siana', emoji: '💆',
-        empleados: ['Ana', 'Catalina', 'Rosmery', 'Amalia'],
+        empleados: SPA_EMPLEADOS,
         tareas: [
           'Revisar agenda de citas del día completa',
           'Preparar cabinas para primeras sesiones',
@@ -157,7 +160,7 @@ const TAREAS = {
       },
       spa: {
         label: 'Spa — Siana', emoji: '💆',
-        empleados: ['Ana', 'Catalina', 'Rosmery', 'Amalia'],
+        empleados: SPA_EMPLEADOS,
         tareas: [
           'Revisar agenda de citas de tarde',
           'Preparar cabinas para sesiones vespertinas',
@@ -166,19 +169,6 @@ const TAREAS = {
           'Cierre de caja Siana',
           'Limpieza y desinfección completa de cabinas al cierre',
           'Registrar novedades del turno',
-        ]
-      },
-      host: {
-        label: 'Host & Concierge', emoji: '🤝',
-        empleados: ['Jose'],
-        tareas: [
-          'Revisar novedades y solicitudes activas de huéspedes',
-          'Coordinar experiencias especiales programadas',
-          'Gestionar comunicaciones con huéspedes in-house',
-          'Actualizar perfil de huéspedes con preferencias detectadas',
-          'Coordinar transportes y reservas en restaurantes externos',
-          'Gestionar reseñas y feedback en tiempo real',
-          'Apoyar en check-ins especiales o VIPs',
         ]
       }
     }
@@ -207,7 +197,7 @@ const TAREAS = {
       },
       mantenimiento: {
         label: 'Mantenimiento', emoji: '🔧',
-        empleados: ['Andrés', 'Jhonatan'],
+        empleados: MANTENIMIENTO_EMPLEADOS,
         tareas: [
           'Inspección nocturna de sistemas eléctricos',
           'Verificar sistema de agua caliente y calderas',
