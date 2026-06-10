@@ -3,6 +3,10 @@
     {
       "path": "/api/cron-refresh",
       "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/habitaciones?cron=wellcomm-cron-2026-seguro",
+      "schedule": "0 10 * * *"
     }
   ],
   "functions": {
@@ -11,7 +15,8 @@
     "api/dashboard.js": { "maxDuration": 30 },
     "api/propietario.js": { "maxDuration": 30 },
     "api/rates.js": { "maxDuration": 30 },
-    "api/cron-refresh.js": { "maxDuration": 30 }
+    "api/cron-refresh.js": { "maxDuration": 30 },
+    "api/habitaciones.js": { "maxDuration": 30 }
   },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
