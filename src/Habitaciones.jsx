@@ -9,7 +9,6 @@ const ESTADOS = [
   { id: 'bloqueada', label: 'Bloqueada', color: '#8e44ad', bg: '#F8F0FF', emoji: '🔒' },
 ]
 
-// Estados específicos para áreas comunes (no hay huésped, así que no hay ocupada/checkout)
 const ESTADOS_ZONA = [
   { id: 'limpia', label: 'Limpia', color: '#7EC8A0', bg: '#E8F5EE', emoji: '✅' },
   { id: 'en_proceso', label: 'En proceso', color: '#e67e22', bg: '#FFF8F0', emoji: '🧹' },
@@ -28,6 +27,7 @@ const MOVIMIENTOS = {
 export default function Habitaciones({ onBack, usuario, puedeAuditar }) {
   const [habitaciones, setHabitaciones] = useState([])
   const [zonas, setZonas] = useState([])
+  const [totales, setTotales] = useState({ auto: 0, manual: 0 })
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState('todas')
   const [selected, setSelected] = useState(null)
@@ -45,6 +45,7 @@ export default function Habitaciones({ onBack, usuario, puedeAuditar }) {
       const data = await res.json()
       setHabitaciones(data.habitaciones || [])
       setZonas(data.zonas || [])
+      setTotales({ auto: data.totalAuto || 0, manual: data.totalManual || 0 })
     } catch (e) {
       console.error(e)
     } finally {
@@ -137,7 +138,7 @@ export default function Habitaciones({ onBack, usuario, puedeAuditar }) {
           <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'white', fontSize: '1.2rem', cursor: 'pointer' }}>←</button>
           <div>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', letterSpacing: '0.05em' }}>Estado de Habitaciones</div>
-            <div style={{ fontSize: '0.7rem', opacity: 0.6 }}>WELLCOMM · 25 habitaciones · 🧳 {salenHoy} salen · 🛬 {lleganHoy} llegan</div>
+            <div style={{ fontSize: '0.7rem', opacity: 0.6 }}>WELLCOMM · 🧳 {salenHoy} salen · 🛬 {lleganHoy} llegan · 🔄 {totales.auto} auto · ✋ {totales.manual} manual</div>
           </div>
           <button onClick={cargar} style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '20px', color: 'white', fontSize: '0.72rem', padding: '0.4rem 0.75rem', cursor: 'pointer' }}>↻ Cloudbeds</button>
         </div>
@@ -183,6 +184,10 @@ export default function Habitaciones({ onBack, usuario, puedeAuditar }) {
                           transition: 'transform 0.1s',
                           position: 'relative'
                         }}>
+                          {/* Marca Auto/Manual arriba-izquierda */}
+                          <div style={{ position: 'absolute', top: 4, left: 4, fontSize: '0.5rem', fontWeight: 700, padding: '0.05rem 0.3rem', borderRadius: 6, background: hab.esManual ? '#5aaa80' : 'rgba(0,0,0,0.12)', color: hab.esManual ? 'white' : 'var(--color-text-light)', letterSpacing: '0.03em' }}>
+                            {hab.esManual ? '✋' : '🔄'}
+                          </div>
                           {hab.movimiento !== 'libre' && (
                             <div style={{ position: 'absolute', top: 4, right: 4, fontSize: '0.6rem' }} title={mov.label}>{mov.emoji}</div>
                           )}
@@ -246,6 +251,11 @@ export default function Habitaciones({ onBack, usuario, puedeAuditar }) {
           <div style={{ background: 'white', borderRadius: '20px 20px 0 0', padding: '1.5rem', width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', marginBottom: '0.25rem' }}>Habitación {selected.id}</div>
             <div style={{ fontSize: '0.78rem', color: 'var(--color-text-light)', marginBottom: '0.5rem' }}>{selected.tipo} · Estado actual: {getEstadoLabel(selected.estado)}</div>
+
+            {/* Indicador auto/manual */}
+            <div style={{ display: 'inline-block', fontSize: '0.68rem', fontWeight: 600, padding: '0.2rem 0.6rem', borderRadius: 8, marginBottom: '0.5rem', background: selected.esManual ? '#E8F5EE' : '#F5F5F5', color: selected.esManual ? '#5aaa80' : 'var(--color-text-light)' }}>
+              {selected.esManual ? '✋ Estado puesto a mano hoy' : '🔄 Estado automático (Cloudbeds)'}
+            </div>
 
             {selected.movimiento !== 'libre' && (
               <div style={{ fontSize: '0.75rem', color: (MOVIMIENTOS[selected.movimiento] || {}).color, marginBottom: '0.5rem', fontWeight: 500 }}>
