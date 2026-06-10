@@ -173,6 +173,7 @@ export default function Habitaciones({ onBack, usuario, puedeAuditar }) {
                     {habsPiso.map(hab => {
                       const estado = getEstado(hab.estado)
                       const mov = MOVIMIENTOS[hab.movimiento] || MOVIMIENTOS.libre
+                      const mostrarHuesped = (hab.movimiento === 'ocupada' || hab.movimiento === 'sale_hoy') && hab.huesped
                       return (
                         <button key={hab.id} onClick={() => { setSelected(hab); setHistorial(null) }} style={{
                           background: estado.bg,
@@ -195,6 +196,11 @@ export default function Habitaciones({ onBack, usuario, puedeAuditar }) {
                           <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--color-text)', marginTop: '0.2rem' }}>{hab.id}</div>
                           <div style={{ fontSize: '0.6rem', color: estado.color, marginTop: '0.1rem' }}>{estado.label}</div>
                           <div style={{ fontSize: '0.55rem', color: mov.color, marginTop: '0.15rem', fontWeight: 500 }}>{mov.label}</div>
+                          {mostrarHuesped && (
+                            <div style={{ fontSize: '0.55rem', color: 'var(--color-text)', marginTop: '0.15rem', fontWeight: 600, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={hab.huesped}>
+                              👤 {hab.huesped}
+                            </div>
+                          )}
                           {puedeAuditar && hab.autor && (
                             <div style={{ fontSize: '0.52rem', color: 'var(--color-text-light)', marginTop: '0.15rem' }}>
                               {hab.autor} · {hab.hora}
@@ -251,6 +257,13 @@ export default function Habitaciones({ onBack, usuario, puedeAuditar }) {
           <div style={{ background: 'white', borderRadius: '20px 20px 0 0', padding: '1.5rem', width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', marginBottom: '0.25rem' }}>Habitación {selected.id}</div>
             <div style={{ fontSize: '0.78rem', color: 'var(--color-text-light)', marginBottom: '0.5rem' }}>{selected.tipo} · Estado actual: {getEstadoLabel(selected.estado)}</div>
+
+            {/* Nombre del huésped si está ocupada o sale hoy */}
+            {(selected.movimiento === 'ocupada' || selected.movimiento === 'sale_hoy') && selected.huesped && (
+              <div style={{ fontSize: '0.85rem', color: 'var(--color-text)', marginBottom: '0.5rem', fontWeight: 600 }}>
+                👤 Huésped: {selected.huesped}
+              </div>
+            )}
 
             {/* Indicador auto/manual */}
             <div style={{ display: 'inline-block', fontSize: '0.68rem', fontWeight: 600, padding: '0.2rem 0.6rem', borderRadius: 8, marginBottom: '0.5rem', background: selected.esManual ? '#E8F5EE' : '#F5F5F5', color: selected.esManual ? '#5aaa80' : 'var(--color-text-light)' }}>
