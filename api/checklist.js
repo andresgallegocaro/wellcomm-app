@@ -29,6 +29,10 @@ const FRONT_EMPLEADOS = ['Rafa', 'Carlos', 'Kate', 'Estefanía']
 const HOUSEKEEPING_EMPLEADOS = ['Marcela', 'Hilda', 'Johana']
 const MANTENIMIENTO_EMPLEADOS = ['Jhonatan', 'Externo']
 const SPA_EMPLEADOS = ['Amalia', 'Valentina', 'Catalina', 'Leidy']
+const TERRAZA_EMPLEADOS = ['Gillman', 'Harold', 'Anais']
+const MARKETING_EMPLEADOS = ['Mauro', 'Maria Paula']
+const CONTABILIDAD_EMPLEADOS = ['Paola']
+const GERENCIA_EMPLEADOS = ['Andrés']
 
 // Apertura y relevo: común a los tres turnos (Sección 3.1 del Playbook)
 const FRONT_APERTURA = [
@@ -146,7 +150,7 @@ const TAREAS = {
       },
       terraza_servicio: {
         label: 'The Terrace — Servicio', emoji: '🍽️',
-        empleados: ['Libardo', 'Yeizon', 'Ana Maria', 'Maykol', 'Emily'],
+        empleados: TERRAZA_EMPLEADOS,
         tareas: [
           'Montaje completo de terraza — mesas, mantelería, velas',
           'Verificar mise en place de barra',
@@ -204,6 +208,122 @@ const TAREAS = {
           'Atender emergencias de mantenimiento nocturnas',
           'Revisar iluminación de emergencia',
           'Registrar novedades en app',
+        ]
+      }
+    }
+  },
+  areas: {
+    label: 'Áreas & Admin', hora: 'Diario · Semanal · Mensual', emoji: '🏛️',
+    puestos: {
+      terraza: {
+        label: 'The Terrace', emoji: '🍷',
+        empleados: TERRAZA_EMPLEADOS,
+        tareas: [
+          'APERTURA · Revisar reservas del día y bloquear mesas según horario y tamaño de grupo',
+          'APERTURA · Briefing de pre-servicio: menú del día, especiales, agotados, alergias y VIPs esperados',
+          'APERTURA · Inspección de mise en place: mesas niveladas, mantelería impecable, cubertería pulida, cristalería sin marcas',
+          'APERTURA · Montaje sensorial: música, iluminación según la hora, plantas y superficies limpias',
+          'APERTURA · Verificar y registrar temperatura de neveras y cámaras',
+          'APERTURA · Control de stock de barra: licores, mixers, garnishes, hielo, cristalería — reponer al par',
+          'APERTURA · Rotación FIFO: producto próximo a vencer al frente',
+          'APERTURA · Verificar fondo de caja y datafono operativo',
+          'SERVICIO · Recibir a cada huésped en menos de 60 segundos con el saludo de marca',
+          'SERVICIO · Venta sugestiva: maridajes, entradas, postres',
+          'SERVICIO · Two-bite check: chequear satisfacción a los 2 minutos del primer bocado',
+          'SERVICIO · Mantener mesas limpias y reseteadas (clear as you go)',
+          'SERVICIO · Gestionar quejas con protocolo LEARN (Escuchar, Empatizar, Disculparse, Resolver, Notificar)',
+          'SERVICIO · Registrar preferencias y alergias de huéspedes recurrentes',
+          'CIERRE · Cierre de caja: cuadrar ventas vs sistema y reportar diferencias',
+          'CIERRE · Registrar ventas y ticket promedio del día (alimenta A&B del Portal)',
+          'CIERRE · Limpieza profunda de barra, superficies y piso',
+          'CIERRE · Guardar perecederos rotulados y fechados; apagar equipos y verificar gas/seguridad',
+          'CIERRE · Reporte de novedades del servicio',
+          'SEMANAL · Inventario completo de barra y bodega; calcular merma y costo',
+          'SEMANAL · Revisar mix de ventas y ajustar carta o promoción',
+          'SEMANAL · Mantenimiento preventivo de equipos y pedido a proveedores',
+          'MENSUAL · Costeo de recetas y food/beverage cost vs objetivo',
+          'MENSUAL · Ingeniería de menú (estrellas, vacas, enigmas, perros) y carta de temporada',
+          'MENSUAL · Evaluación de proveedores y capacitación del equipo',
+        ]
+      },
+      marketing: {
+        label: 'Marketing', emoji: '📣',
+        empleados: MARKETING_EMPLEADOS,
+        tareas: [
+          'DIARIO · Responder mensajes y comentarios en todas las redes en menos de 2 horas',
+          'DIARIO · Publicar el contenido programado y verificar que se vea correcto',
+          'DIARIO · Monitorear menciones y etiquetas de huéspedes; repostear con permiso',
+          'DIARIO · Revisar reseñas nuevas (Google, Booking, TripAdvisor) y alertar a Gerencia las críticas',
+          'DIARIO · Capturar contenido del día a día (foto/video de momentos reales)',
+          'DIARIO · Revisar métricas de campañas activas y ajustar pauta si hace falta',
+          'SEMANAL · Planificar y programar el contenido de la semana siguiente',
+          'SEMANAL · Revisar rendimiento: top posts, engagement, crecimiento',
+          'SEMANAL · Actualizar tarifas y fotos en OTAs y canal directo si hubo cambios',
+          'SEMANAL · Revisar posicionamiento y precios de la competencia',
+          'SEMANAL · Coordinar con Spa y Terraza promociones y eventos a comunicar',
+          'SEMANAL · Gestionar colaboraciones con creadores/influencers y prensa',
+          'SEMANAL · Enviar o preparar el newsletter a la base de huéspedes',
+          'SEMANAL · Revisar estado del sitio web y motor de reserva directa',
+          'MENSUAL · Informe: alcance, seguidores, engagement, leads, reservas directas',
+          'MENSUAL · ROAS y costo por reserva por canal',
+          'MENSUAL · Revisar mezcla directo vs OTAs (objetivo subir el directo)',
+          'MENSUAL · Auditoría de reputación online por plataforma',
+          'MENSUAL · Plan de contenido del mes siguiente alineado a temporada y eventos',
+          'MENSUAL · Optimizar fichas de Google Business y OTAs',
+          'MENSUAL · Propuesta de campaña del mes con presupuesto y meta',
+        ]
+      },
+      contabilidad: {
+        label: 'Contabilidad', emoji: '📊',
+        empleados: CONTABILIDAD_EMPLEADOS,
+        tareas: [
+          'DIARIO · Cuadrar el cierre de caja de cada turno (Front, Terraza, Spa) contra el sistema',
+          'DIARIO · Registrar los ingresos del día por centro (Habitaciones, A&B, Spa)',
+          'DIARIO · Conciliar pagos con datafono y transferencias',
+          'DIARIO · Verificar y documentar diferencias de caja',
+          'DIARIO · Registrar y archivar facturas de compra recibidas',
+          'DIARIO · Revisar el flujo de caja: saldo disponible vs obligaciones inmediatas',
+          'SEMANAL · Conciliación bancaria de la semana',
+          'SEMANAL · Cuentas por pagar: priorizar vencimientos y compensar saldos a favor antes de pagos nuevos',
+          'SEMANAL · Cuentas por cobrar: seguimiento a empresas, eventos y créditos',
+          'SEMANAL · Control de anticipos y depósitos de reservas',
+          'SEMANAL · Validar nómina parcial y novedades de personal',
+          'SEMANAL · Reporte de caja y flujo a Gerencia',
+          'MENSUAL · Cierre contable: todos los ingresos y gastos registrados',
+          'MENSUAL · Conciliación bancaria mensual completa',
+          'MENSUAL · Liquidación de impuestos (IVA, ReteFuente, ICA, INC)',
+          'MENSUAL · Nómina mensual: liquidación, seguridad social y prestaciones',
+          'MENSUAL · Estado de resultados (P&L) por centro de costo',
+          'MENSUAL · Conciliar el GOP y calcular la comisión de SOLARA (fijo + % GOP)',
+          'MENSUAL · Análisis de gastos vs presupuesto y explicación de desviaciones',
+          'MENSUAL · Cierre de cartera (días por cobrar y por pagar) y backup de soportes',
+        ]
+      },
+      gerencia: {
+        label: 'Gerencia General', emoji: '🎩',
+        empleados: GERENCIA_EMPLEADOS,
+        tareas: [
+          'DIARIO · Revisar el briefing del día: llegadas, salidas, VIPs, ocupación, eventos',
+          'DIARIO · Lectura de KPIs: ocupación, ADR, RevPAR vs presupuesto (Dashboard)',
+          'DIARIO · MOD Walk: recorrido físico — lobby, una habitación lista, spa, terraza, áreas comunes',
+          'DIARIO · Revisar novedades del turno noche y pendientes críticos abiertos',
+          'DIARIO · Saludar al equipo y detectar el ánimo del día (pulse check)',
+          'DIARIO · Revisar reseñas nuevas y responder personalmente las críticas o muy positivas',
+          'DIARIO · Verificar que no haya quejas de huéspedes sin resolver',
+          'SEMANAL · Reunión de Gerencia + líderes de área',
+          'SEMANAL · Revisión de revenue y pickup: on-the-books y estrategia de tarifas',
+          'SEMANAL · Revisar el flujo de caja semanal con Contabilidad',
+          'SEMANAL · Revisar mantenimiento de alto impacto en experiencia',
+          'SEMANAL · Desempeño por centro: Habitaciones, A&B, Spa vs presupuesto',
+          'SEMANAL · Seguimiento a compromisos (cada uno con dueño y fecha)',
+          'SEMANAL · Reputación online consolidada y plan de acción con Marketing',
+          'MENSUAL · Cierre de mes con Contabilidad: P&L, GOP, EBITDA vs presupuesto',
+          'MENSUAL · Informe de gestión para socios/inversionistas',
+          'MENSUAL · Revisión de KPIs del mes: ocupación, ADR, RevPAR, GOPPAR, satisfacción',
+          'MENSUAL · Comité con propietarios',
+          'MENSUAL · Evaluación del equipo: desempeño, clima laboral, desarrollo',
+          'MENSUAL · Revisión de proveedores críticos y consolidación',
+          'MENSUAL · Análisis de satisfacción del huésped (NPS, reseñas) y plan de mejora',
         ]
       }
     }
