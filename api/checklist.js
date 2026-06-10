@@ -24,27 +24,41 @@ async function kvSet(key, value) {
   })
 }
 
+// Equipo de Front Desk (anfitriones)
+const FRONT_EMPLEADOS = ['Rafa', 'Carlos', 'Kate', 'Valentina']
+
+// Apertura y relevo: común a los tres turnos (Sección 3.1 del Playbook)
+const FRONT_APERTURA = [
+  'Recibir el relevo cara a cara con el turno saliente: leer y firmar las novedades, repasar llegadas, salidas y pendientes abiertos',
+  'Recibir el fondo de caja de $300.000 COP — contar el dinero al recibirlo y dejar constancia',
+  'Recorrido sensorial del lobby: música de marca al volumen correcto, aroma WELLCOMM, A/C a 22°C automático, iluminación adecuada al momento del día',
+  'Asegurar el escritorio impecable y provisto: papel en impresoras, llaves, bolígrafos, tarjetas de bienvenida y de registro, papelería para notas a mano',
+  'Verificar la estación de Welcomedrinks: limpia y lista (6 vasos + agua con naranja, pepino, menta e hielo); reponer si hace falta',
+  'Revisar el back-of-house: storage de equipaje ordenado, zona de detalles y amenities surtida (café colombiano, dulces locales, tarjetería)',
+  'Revisar e-mail, WhatsApp y chats de las OTAs; responder en menos de 5 minutos',
+  'Atender reservas y tomar comentarios o inquietudes por chat, e-mail o teléfono',
+]
+
 const TAREAS = {
   manana: {
     label: 'Turno Mañana', hora: '6:00am – 2:30pm', emoji: '🌅',
     puestos: {
       front: {
         label: 'Front Desk', emoji: '🏨',
-        empleados: ['Yury', 'Fabian', 'Alex', 'Rafael'],
+        empleados: FRONT_EMPLEADOS,
         tareas: [
-          'Leer libro de novedades del turno noche',
-          'Revisar llegadas del día en Cloudbeds con perfil de cada huésped',
-          'Preparar llaves y sobre de bienvenida para check-ins',
-          'Activar aromaterapia en recepción (lavanda o cítricos)',
-          'Preparar Ochibori para recibimiento de huéspedes',
-          'Confirmar reservas de spa del día con equipo Siana',
-          'Verificar estado de habitaciones con Marcela (Housekeeping)',
-          'Revisar reporte de ocupación vs tarifa recomendada PricePoint',
-          'Ejecutar check-outs con encuesta de satisfacción verbal',
-          'Actualizar estado de habitaciones en la app tras cada salida',
-          'Ejecutar check-ins con protocolo wellness completo',
-          'Registrar preferencias detectadas en perfil del huésped',
-          'Briefing de traspaso con turno tarde — verbal + novedades en app',
+          ...FRONT_APERTURA,
+          'Revisar las llegadas del día: confirmar tipo de habitación, horarios estimados y peticiones especiales en el PMS',
+          'Escribir a mano las notas de bienvenida del día y preparar el amenity de cada llegada (café colombiano + nota a mano); personalizar según el perfil',
+          'Identificar cumpleaños, aniversarios, lunas de miel o huéspedes recurrentes entre las llegadas y preparar el detalle WOW correspondiente',
+          'Verificar los check-outs del día: hacer la lista e imprimir los saldos pendientes por pagar',
+          'Confirmar que el recordatorio automático de check-out (Booking) se envió a las salidas del día; si falta alguno, gestionarlo manualmente a una hora prudente',
+          'Coordinar con Housekeeping el estado y la priorización de habitaciones: salidas, early check-in y cuartos con atención especial',
+          'Recopilar y reportar las observaciones de los Invitados que afecten a Mantenimiento o Limpieza, dejándolas registradas y canalizadas',
+          'Verificar llaves, tarjetas de bienvenida y de registro para los Invitados que llegan',
+          'Chequear comentarios y notas de recepción; resolver cualquier falla pendiente del turno anterior',
+          'Mantener el lobby y la estación de Welcomedrinks impecables durante todo el turno',
+          'Actualizar el archivo de novedades de turno antes del relevo',
         ]
       },
       housekeeping: {
@@ -96,19 +110,21 @@ const TAREAS = {
     puestos: {
       front: {
         label: 'Front Desk', emoji: '🏨',
-        empleados: ['Yury', 'Fabian', 'Alex', 'Rafael'],
+        empleados: FRONT_EMPLEADOS,
         tareas: [
-          'Leer novedades del turno mañana',
-          'Revisar llegadas pendientes del día',
-          'Ejecutar check-ins con protocolo wellness completo',
-          'Actualizar estado de habitaciones post check-in',
-          'Coordinar con spa — seguimiento reservas de tarde',
-          'Supervisar apertura de terraza con equipo F&B',
-          'Atender solicitudes de huéspedes en casa',
-          'Gestionar solicitudes de late check-out para mañana',
-          'Confirmar llegadas del día siguiente — revisar notas especiales',
-          'Cierre parcial de caja del día',
-          'Briefing de traspaso con turno noche — verbal + novedades en app',
+          ...FRONT_APERTURA,
+          'Verificar que no existan salidas pendientes en el sistema',
+          'Confirmar que cada llegada prevista tenga su habitación lista, su amenity (café + nota a mano) y su personalización antes del check-in',
+          'Escribir a mano cualquier nota de bienvenida pendiente para las llegadas de la tarde-noche',
+          'Recibir y ejecutar los check-in de la tarde con la secuencia de servicio de lujo completa',
+          'Actualizar y resolver fallas o quejas pendientes; dar seguimiento a las observaciones canalizadas a Mantenimiento y Limpieza',
+          'Recopilar nuevas observaciones de los Invitados que afecten a Mantenimiento o Limpieza y reportarlas',
+          'Coordinar con Mantenimiento el estado de las habitaciones (17:00)',
+          'Verificar llaves, tarjetas de bienvenida y de registro para los Invitados que llegan',
+          'Cuidar el ambiente del lobby en la transición al atardecer: ajustar iluminación, música y aroma al momento del día',
+          'Dejar el lobby, la estación de Welcomedrinks y el escritorio impecables para el turno siguiente',
+          'Actualizar el archivo de novedades de turno',
+          'Imprimir el cierre de turno desde el PMS, cuadrarlo con el Excel del Drive, imprimirlo y guardarlo en la caja para Contabilidad',
         ]
       },
       terraza_cocina: {
@@ -171,22 +187,22 @@ const TAREAS = {
     label: 'Turno Noche', hora: '10:00pm – 6:00am', emoji: '🌙',
     puestos: {
       front: {
-        label: 'Front Desk', emoji: '🏨',
-        empleados: ['Oscar', 'Fabian', 'Alex'],
+        label: 'Front Desk — Auditoría Nocturna', emoji: '🏨',
+        empleados: FRONT_EMPLEADOS,
         tareas: [
-          'Leer novedades del turno tarde',
-          'Verificar lista de huéspedes en casa y estado de habitaciones',
-          'Confirmar llegadas tardías esperadas con hora estimada',
-          'Revisar sistema de alarmas y seguridad del edificio',
-          'Atender llegadas tardías con protocolo nocturno',
-          'Cierre de caja diario completo',
-          'Preparar reporte de ocupación del día',
-          'Pre-check-in de todas las llegadas del día siguiente',
-          'Preparar Ochibori y aromaterapia para turno mañana',
-          'Ronda de seguridad piso por piso — cada 2 horas',
-          'Verificar sistemas: wifi, A/C áreas comunes, iluminación',
-          'Reporte nocturno completo en libro de novedades',
-          'Briefing de traspaso con turno mañana',
+          ...FRONT_APERTURA,
+          'Verificar que no existan salidas pendientes en el sistema',
+          'Actualizar y resolver fallas o quejas pendientes; consolidar las observaciones del día para Mantenimiento y Limpieza',
+          'Cerrar el datáfono a las 23:50',
+          'Asignar y pre-bloquear las habitaciones de las llegadas del día siguiente, según preferencias, peticiones y categoría reservada',
+          'Generar llaves, tarjetas de bienvenida y de registro para los Invitados que llegan al día siguiente',
+          'Preparar la papelería para que el turno de la mañana escriba las notas de bienvenida a mano sin contratiempos',
+          'Auditar en el PMS que TODAS las reservas estén correctas: datos completos, documentos subidos, sin saldos pendientes; registrar cada ítem a corregir en el Word del Drive (habitación + novedad) y dejarlo corregido',
+          'Diligenciar el seguimiento de ventas diarias desde el panel del PMS (04:00–05:00)',
+          'Revisar las reservas próximas (15 días) en las OTAs y ofrecerles el servicio de transporte',
+          'Dejar el lobby, la música, la iluminación y el aroma listos para el primer Invitado del amanecer',
+          'Actualizar el archivo de novedades de turno',
+          'Imprimir el cierre de turno desde Cloudbeds, cuadrarlo con el Excel del Drive, imprimirlo y guardarlo en la caja para Contabilidad',
         ]
       },
       mantenimiento: {
