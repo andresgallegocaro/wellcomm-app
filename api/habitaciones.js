@@ -1,5 +1,6 @@
 const KV_URL = process.env.KV_REST_API_URL
 const KV_TOKEN = process.env.KV_REST_API_TOKEN
+const CRON_SECRET = process.env.CRON_SECRET
 
 // Las 25 habitaciones reales con su tipo y piso
 const HABITACIONES = [
@@ -159,6 +160,28 @@ function ahoraColombia() {
   return now.toISOString().slice(11, 16) // HH:MM
 }
 
+// Construye el listado de las 25 habitaciones con estado/movimiento/autor/esManual
+function construirHabitaciones(estados, movimientos, hoy) {
+  return HABITACIONES.map(h => {
+    const guardado = estados[h.id]
+    const movimiento = movimientos[h.id] || 'libre'
+
+    let estado, autor = null, hora = null, esManual = false
+    if (guardado && guardado.fecha === hoy && guardado.manual) {
+      estado = guardado.estado
+      autor = guardado.autor || null
+      hora = guardado.hora || null
+      esManual = true
+    } else {
+      if (movimiento === 'ocupada' || movimiento === 'sale_hoy') estado = 'ocupada'
+      else estado = 'limpia'
+      esManual = false
+    }
+
+    return { ...h, estado, movimiento, autor, hora, esManual }
+  })
+}
+
 export default async function handler(req, res) {
   try {
     res.setHeader('Access-Control-Allow-Origin', '*')
@@ -168,6 +191,18 @@ export default async function handler(req, res) {
     if (req.method === 'OPTIONS') return res.status(200).end()
 
     const hoy = new Date().toISOString().slice(0, 10)
+
+    // ── CRON: precalentar el movimiento del día (5-6am) ──
+    // Llamar como GET /api/habitaciones?cron=CRON_SECRET
+    if (req.method === 'GET' && req.query.cron) {
+      if (req.query.cron !== CRON_SECRET) {
+        return res.status(401).json({ error: 'No autorizado' })
+      }
+      const movimientos = await getMovimientosCloudbeds()
+      // Guardamos una foto del movimiento de arranque del día (para auditoría / precalentado)
+      await kvSet('habitaciones_movimiento_cache', { fecha: hoy, movimientos, ts: new Date().toISOString() })
+      return res.status(200).json({ ok: true, fecha: hoy, precalentado: Object.keys(movimientos).length })
+    }
 
     // ── POST ──
     if (req.method === 'POST') {
@@ -204,7 +239,7 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: true })
       }
 
-      // Actualizar estado manual de una habitación (lógica original)
+      // Actualizar estado manual de una habitación
       const { habitacionId, estado, usuario } = body
       const autor = usuario || 'Desconocido'
       const hora = ahoraColombia()
@@ -230,35 +265,23 @@ export default async function handler(req, res) {
     ])
 
     const estados = estadosGuardados || {}
-
-    const habitaciones = HABITACIONES.map(h => {
-      const guardado = estados[h.id]
-      const movimiento = movimientos[h.id] || 'libre'
-
-      let estado, autor = null, hora = null
-      if (guardado && guardado.fecha === hoy && guardado.manual) {
-        estado = guardado.estado
-        autor = guardado.autor || null
-        hora = guardado.hora || null
-      } else {
-        if (movimiento === 'ocupada' || movimiento === 'sale_hoy') estado = 'ocupada'
-        else estado = 'limpia'
-      }
-
-      return { ...h, estado, movimiento, autor, hora }
-    })
+    const habitaciones = construirHabitaciones(estados, movimientos, hoy)
 
     // Zonas comunes: estado de aseo manual; si es de hoy se respeta, si no, "limpia" por defecto
     const ez = estadosZonas || {}
     const zonas = ZONAS_COMUNES.map(z => {
       const g = ez[z.id]
       if (g && g.fecha === hoy) {
-        return { ...z, estado: g.estado, autor: g.autor || null, hora: g.hora || null }
+        return { ...z, estado: g.estado, autor: g.autor || null, hora: g.hora || null, esManual: true }
       }
-      return { ...z, estado: 'limpia', autor: null, hora: null }
+      return { ...z, estado: 'limpia', autor: null, hora: null, esManual: false }
     })
 
-    return res.status(200).json({ habitaciones, zonas, fecha: hoy })
+    // Conteo de cuántas habitaciones están en estado automático vs manual hoy
+    const totalManual = habitaciones.filter(h => h.esManual).length
+    const totalAuto = habitaciones.length - totalManual
+
+    return res.status(200).json({ habitaciones, zonas, fecha: hoy, totalManual, totalAuto })
 
   } catch (error) {
     return res.status(500).json({ error: error.message })
