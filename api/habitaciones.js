@@ -116,12 +116,29 @@ function extraerNumero(roomName) {
   return m ? m[1] : null
 }
 
+// Extrae el nombre del huésped de una reserva, probando los campos posibles de Cloudbeds
+function extraerHuesped(d) {
+  if (!d) return null
+  const directo = d.guestName || d.guestFirstName || d.firstName
+  if (d.guestName) return String(d.guestName).trim()
+  const compuesto = [d.guestFirstName || d.firstName, d.guestLastName || d.lastName].filter(Boolean).join(' ').trim()
+  if (compuesto) return compuesto
+  // Algunos planes traen el huésped en una lista
+  if (Array.isArray(d.guestList) && d.guestList.length > 0) {
+    const g = d.guestList[0]
+    const n = [g.guestFirstName || g.firstName, g.guestLastName || g.lastName].filter(Boolean).join(' ').trim()
+    if (n) return n
+  }
+  return directo ? String(directo).trim() : null
+}
+
 async function getMovimientosCloudbeds() {
   const token = await getFreshToken()
   const headers = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
   const hoy = new Date().toISOString().slice(0, 10)
 
   const movimientos = {}
+  const huespedes = {}
 
   try {
     const enCasaRes = await fetch(`https://api.cloudbeds.com/api/v1.1/getReservations?status=checked_in&pageSize=40`, { headers })
@@ -131,9 +148,13 @@ async function getMovimientosCloudbeds() {
     detallesEnCasa.forEach(d => {
       if (!d) return
       const saleHoy = d.endDate === hoy
+      const nombre = extraerHuesped(d)
       ;(d.assigned || []).forEach(a => {
         const num = extraerNumero(a.roomName)
-        if (num) movimientos[num] = saleHoy ? 'sale_hoy' : 'ocupada'
+        if (num) {
+          movimientos[num] = saleHoy ? 'sale_hoy' : 'ocupada'
+          if (nombre) huespedes[num] = nombre
+        }
       })
     })
 
@@ -143,15 +164,19 @@ async function getMovimientosCloudbeds() {
 
     detallesLlegadas.forEach(d => {
       if (!d) return
+      const nombre = extraerHuesped(d)
       ;(d.assigned || []).forEach(a => {
         const num = extraerNumero(a.roomName)
-        if (num && !movimientos[num]) movimientos[num] = 'llega_hoy'
+        if (num && !movimientos[num]) {
+          movimientos[num] = 'llega_hoy'
+          if (nombre) huespedes[num] = nombre
+        }
       })
     })
 
-    return movimientos
+    return { movimientos, huespedes }
   } catch (e) {
-    return movimientos
+    return { movimientos, huespedes }
   }
 }
 
@@ -160,8 +185,8 @@ function ahoraColombia() {
   return now.toISOString().slice(11, 16) // HH:MM
 }
 
-// Construye el listado de las 25 habitaciones con estado/movimiento/autor/esManual
-function construirHabitaciones(estados, movimientos, hoy) {
+// Construye el listado de las 25 habitaciones con estado/movimiento/autor/esManual/huesped
+function construirHabitaciones(estados, movimientos, hoy, huespedes = {}) {
   return HABITACIONES.map(h => {
     const guardado = estados[h.id]
     const movimiento = movimientos[h.id] || 'libre'
@@ -178,7 +203,7 @@ function construirHabitaciones(estados, movimientos, hoy) {
       esManual = false
     }
 
-    return { ...h, estado, movimiento, autor, hora, esManual }
+    return { ...h, estado, movimiento, autor, hora, esManual, huesped: huespedes[h.id] || null }
   })
 }
 
@@ -198,7 +223,7 @@ export default async function handler(req, res) {
       if (req.query.cron !== CRON_SECRET) {
         return res.status(401).json({ error: 'No autorizado' })
       }
-      const movimientos = await getMovimientosCloudbeds()
+      const { movimientos } = await getMovimientosCloudbeds()
       // Guardamos una foto del movimiento de arranque del día (para auditoría / precalentado)
       await kvSet('habitaciones_movimiento_cache', { fecha: hoy, movimientos, ts: new Date().toISOString() })
       return res.status(200).json({ ok: true, fecha: hoy, precalentado: Object.keys(movimientos).length })
@@ -258,14 +283,16 @@ export default async function handler(req, res) {
     }
 
     // ── GET: 25 habitaciones + zonas comunes ──
-    const [estadosGuardados, movimientos, estadosZonas] = await Promise.all([
+    const [estadosGuardados, movimientoData, estadosZonas] = await Promise.all([
       kvGet('habitaciones_estados'),
       getMovimientosCloudbeds(),
       kvGet('areas_comunes_estados'),
     ])
 
     const estados = estadosGuardados || {}
-    const habitaciones = construirHabitaciones(estados, movimientos, hoy)
+    const movimientos = movimientoData.movimientos
+    const huespedes = movimientoData.huespedes
+    const habitaciones = construirHabitaciones(estados, movimientos, hoy, huespedes)
 
     // Zonas comunes: estado de aseo manual; si es de hoy se respeta, si no, "limpia" por defecto
     const ez = estadosZonas || {}
