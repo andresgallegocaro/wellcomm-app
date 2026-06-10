@@ -4,6 +4,7 @@ const TURNOS = [
   { id: 'manana', label: 'Mañana', hora: '6am–2:30pm', emoji: '🌅' },
   { id: 'tarde', label: 'Tarde', hora: '1:30pm–10pm', emoji: '☀️' },
   { id: 'noche', label: 'Noche', hora: '10pm–6am', emoji: '🌙' },
+  { id: 'areas', label: 'Áreas', hora: 'Admin', emoji: '🏛️' },
 ]
 
 function getTurnoActual() {
@@ -80,22 +81,22 @@ export default function Checklist({ onBack }) {
         </div>
 
         {/* Selector turno */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.4rem', marginBottom: '0.75rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '0.4rem', marginBottom: '0.75rem' }}>
           {TURNOS.map(t => (
             <button key={t.id} onClick={() => setTurno(t.id)} style={{
               background: turno === t.id ? 'white' : 'rgba(255,255,255,0.12)',
               color: turno === t.id ? 'var(--color-text)' : 'white',
-              border: 'none', borderRadius: 8, padding: '0.5rem 0.25rem',
-              fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'var(--font-body)',
+              border: 'none', borderRadius: 8, padding: '0.5rem 0.2rem',
+              fontSize: '0.7rem', cursor: 'pointer', fontFamily: 'var(--font-body)',
               fontWeight: turno === t.id ? 600 : 400, textAlign: 'center'
-            }}>{t.emoji} {t.label}<br /><span style={{ fontSize: '0.6rem', opacity: 0.7 }}>{t.hora}</span></button>
+            }}>{t.emoji} {t.label}<br /><span style={{ fontSize: '0.55rem', opacity: 0.7 }}>{t.hora}</span></button>
           ))}
         </div>
 
         {/* Barra progreso global */}
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', opacity: 0.7, marginBottom: '0.25rem' }}>
-            <span>Progreso total del turno</span>
+            <span>Progreso total</span>
             <span>{completadasGlobal}/{totalGlobal} tareas</span>
           </div>
           <div style={{ background: 'rgba(255,255,255,0.2)', borderRadius: 4, height: 5 }}>
