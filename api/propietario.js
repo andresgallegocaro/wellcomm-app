@@ -4,10 +4,10 @@ const NOTION_TOKEN = process.env.NOTION_TOKEN
 const PROVEEDORES_DB_ID = '67e8ac9735f44741b8b5237f8410d2e6'
 
 // === Bases de Notion: fuente única de verdad ===
-const GASTOS_DB_ID = 'e409a68237844443bf910503b1736c25'
-const GASTOS_DS_ID = '0ae294e6-63ee-4322-a0ec-1ed53b82a12e'
-const VENTAS_DB_ID = '1c7cd1d7c7b54aceb41587fb7ff6cf5f'
-const VENTAS_DS_ID = '68a25b7d-02bd-483e-b9ce-4e15889bd175'
+const GASTOS_DB_ID = '90c6ba7171e746efb9bb6cc2dcee81e9'
+const GASTOS_DS_ID = 'd57f30f6-6889-4169-937b-439242586302'
+const VENTAS_DB_ID = '98c9326cda034e5dbb2880a85bc654ce'
+const VENTAS_DS_ID = '1e3c351b-d8be-42cf-a15e-b8f5f02011da'
 
 const MESES_COL = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 
@@ -161,7 +161,12 @@ async function getGastosNotion(mes) {
   return cats
 }
 
-// Lee los ingresos de outlets del mes desde Notion (terraza, spa, upselling, otros)
+// Lee los ingresos de outlets del mes desde Notion.
+// Consolida usando el campo "Grupo" (controlable desde Notion):
+//   - Habitaciones -> se ignora aquí (la cifra real viene de Cloudbeds en vivo)
+//   - The Terrace (F&B) -> suma Terraza + Cocina + Eventos -> terraza
+//   - AKEN Spa -> spa
+//   - Otros -> otrosIngresos
 async function getIngresosNotion(mes) {
   const mesNum = parseInt(mes.split('-')[1])
   const col = MESES_COL[mesNum]
@@ -169,12 +174,24 @@ async function getIngresosNotion(mes) {
   const filas = await notionQueryAll(VENTAS_DB_ID, VENTAS_DS_ID)
   filas.forEach(f => {
     const props = f.properties
+    const grupo = (selectProp(props, 'Grupo') || '').toLowerCase()
     const outlet = (titleProp(props, 'Outlet') || '').toLowerCase()
     const valor = numProp(props, col)
-    if (outlet.includes('terrace') || outlet.includes('terraza')) out.terraza = valor
-    else if (outlet.includes('aken') || outlet.includes('spa')) out.spa = valor
-    else if (outlet.includes('upsell')) out.upselling = valor
-    else if (outlet.includes('otro')) out.otrosIngresos = valor
+    // 1) Preferimos el campo Grupo (decisión de consolidación que vive en Notion)
+    if (grupo) {
+      if (grupo.includes('habitacion') || grupo.includes('room')) return
+      if (grupo.includes('terrace') || grupo.includes('terraza') || grupo.includes('f&b') || grupo.includes('f y b') || grupo.includes('fyb')) { out.terraza += valor; return }
+      if (grupo.includes('spa') || grupo.includes('aken')) { out.spa += valor; return }
+      if (grupo.includes('upsell')) { out.upselling += valor; return }
+      if (grupo.includes('otro')) { out.otrosIngresos += valor; return }
+      return
+    }
+    // 2) Fallback por nombre del outlet si la fila no trae Grupo
+    if (outlet.includes('habitacion') || outlet.includes('room')) return
+    if (outlet.includes('terraza') || outlet.includes('terrace') || outlet.includes('cocina') || outlet.includes('evento') || outlet.includes('alimento') || outlet.includes('bebida')) out.terraza += valor
+    else if (outlet.includes('spa') || outlet.includes('aken')) out.spa += valor
+    else if (outlet.includes('upsell')) out.upselling += valor
+    else if (outlet.includes('otro')) out.otrosIngresos += valor
   })
   return out
 }
@@ -449,7 +466,7 @@ export default async function handler(req, res) {
     // Los gastos y los ingresos de A&B/Spa ahora se gestionan en Notion.
     // Estos endpoints se conservan para no romper el front; no afectan la lectura.
     if (req.method === 'POST' && body.action === 'guardar_gastos') {
-      return res.status(200).json({ ok: true, info: 'Los gastos se gestionan en Notion (base 💸 Gastos WELLcomm 2026).' })
+      return res.status(200).json({ ok: true, info: 'Los gastos se gestionan en Notion (base 💸 Gastos WELLcomm Balance Siigo).' })
     }
     if (req.method === 'POST' && body.action === 'reset_gastos') {
       return res.status(200).json({ ok: true, info: 'Los gastos se gestionan en Notion.' })
