@@ -328,9 +328,38 @@ function RecibosSection({ data, mes, onReload }) {
   )
 }
 
-function GastosForm({ gastos, onChange, mes }) {
+function GastosEditor({ gastos, mes, onChange, onSaved }) {
+  const [expanded, setExpanded] = useState({})
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+
+  const cats = gastos.categorias || []
+  const ing = gastos.ingresos || {}
+
+  function setCats(newCats) { onChange({ ...gastos, categorias: newCats }) }
+  function setIngreso(field, val) { onChange({ ...gastos, ingresos: { ...ing, [field]: val } }) }
+  function toggle(id) { setExpanded(p => ({ ...p, [id]: !p[id] })) }
+
+  function updLineaValor(ci, li, val) {
+    setCats(cats.map((c, i) => i !== ci ? c : { ...c, lineas: c.lineas.map((l, j) => j !== li ? l : { ...l, valor: val }) }))
+  }
+  function updLineaLabel(ci, li, val) {
+    setCats(cats.map((c, i) => i !== ci ? c : { ...c, lineas: c.lineas.map((l, j) => j !== li ? l : { ...l, label: val }) }))
+  }
+  function addLinea(ci) {
+    setCats(cats.map((c, i) => i !== ci ? c : { ...c, lineas: [...(c.lineas || []), { id: `l${Date.now()}`, label: 'Nueva línea', valor: 0 }] }))
+  }
+  function delLinea(ci, li) {
+    setCats(cats.map((c, i) => i !== ci ? c : { ...c, lineas: c.lineas.filter((_, j) => j !== li) }))
+  }
+  function updCatLabel(ci, val) {
+    setCats(cats.map((c, i) => i !== ci ? c : { ...c, label: val }))
+  }
+  function delCat(ci) { setCats(cats.filter((_, i) => i !== ci)) }
+  function addCat() { setCats([...cats, { id: `c${Date.now()}`, label: 'Nueva categoría', emoji: '📁', lineas: [] }]) }
+
+  const catTotal = c => (c.lineas || []).reduce((a, l) => a + (Number(l.valor) || 0), 0)
+  const totalGeneral = cats.reduce((a, c) => a + catTotal(c), 0)
 
   async function guardar() {
     setSaving(true)
@@ -340,60 +369,91 @@ function GastosForm({ gastos, onChange, mes }) {
         body: JSON.stringify({ action: 'guardar_gastos', mes, gastos })
       })
       setSaved(true); setTimeout(() => setSaved(false), 2000)
+      if (onSaved) await onSaved()
     } finally { setSaving(false) }
   }
 
-  const Input = ({ label, field, section, readOnly, hint }) => (
-    <div style={{ marginBottom: '0.75rem' }}>
-      <label style={{ fontSize: '0.7rem', color: C.muted, display: 'block', marginBottom: '0.25rem' }}>{label}</label>
-      <div style={{ display: 'flex', alignItems: 'center', border: `1px solid ${C.light}`, borderRadius: 8, background: readOnly ? '#f3f3f3' : C.white, overflow: 'hidden' }}>
-        <span style={{ padding: '0.6rem 0.5rem', fontSize: '0.78rem', color: C.muted, borderRight: `1px solid ${C.light}` }}>COP</span>
-        <input type="number" value={gastos[section][field] || ''} onChange={e => onChange(section, field, Number(e.target.value))}
-          readOnly={readOnly} disabled={readOnly}
-          placeholder="0" style={{ flex: 1, padding: '0.6rem 0.75rem', border: 'none', outline: 'none', fontSize: '0.88rem', fontFamily: 'var(--font-body)', background: 'transparent', color: readOnly ? C.muted : C.text }} />
-      </div>
-      {hint && <div style={{ fontSize: '0.62rem', color: C.muted, marginTop: '0.2rem' }}>{hint}</div>}
-    </div>
-  )
+  const inputStyle = { width: '100%', padding: '0.55rem 0.65rem', border: `1px solid ${C.light}`, borderRadius: 8, fontSize: '0.85rem', fontFamily: 'var(--font-body)', outline: 'none', boxSizing: 'border-box' }
 
   return (
     <div>
+      {/* Ingresos */}
       <div style={{ background: C.white, borderRadius: 12, padding: '1.25rem', marginBottom: '1rem', border: `1px solid ${C.light}` }}>
         <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', marginBottom: '1rem', borderBottom: `1px solid ${C.light}`, paddingBottom: '0.5rem' }}>💰 Ingresos del mes</div>
-        <Input label="Habitaciones" field="habitaciones" section="ingresos" readOnly hint="Automático desde Cloudbeds" />
-        <Input label="Terraza / F&B" field="terraza" section="ingresos" hint="Ingreso manual cada mañana (acumulado del mes)" />
-        <Input label="SPA" field="spa" section="ingresos" hint="Ingreso manual cada mañana (acumulado del mes)" />
-        <Input label="Upselling y servicios extra" field="upselling" section="ingresos" />
-        <Input label="Otros ingresos" field="otrosIngresos" section="ingresos" />
+        {[
+          { label: 'Habitaciones (automático Cloudbeds)', field: 'habitaciones', ro: true },
+          { label: 'Terraza / F&B (manual)', field: 'terraza' },
+          { label: 'SPA (manual)', field: 'spa' },
+          { label: 'Upselling y servicios extra', field: 'upselling' },
+          { label: 'Otros ingresos', field: 'otrosIngresos' },
+        ].map(it => (
+          <div key={it.field} style={{ marginBottom: '0.75rem' }}>
+            <label style={{ fontSize: '0.7rem', color: C.muted, display: 'block', marginBottom: '0.25rem' }}>{it.label}</label>
+            <div style={{ display: 'flex', alignItems: 'center', border: `1px solid ${C.light}`, borderRadius: 8, background: it.ro ? '#f3f3f3' : C.white, overflow: 'hidden' }}>
+              <span style={{ padding: '0.6rem 0.5rem', fontSize: '0.78rem', color: C.muted, borderRight: `1px solid ${C.light}` }}>COP</span>
+              <input type="number" value={ing[it.field] || ''} readOnly={it.ro} disabled={it.ro}
+                onChange={e => setIngreso(it.field, Number(e.target.value))}
+                placeholder="0" style={{ flex: 1, padding: '0.6rem 0.75rem', border: 'none', outline: 'none', fontSize: '0.88rem', fontFamily: 'var(--font-body)', background: 'transparent', color: it.ro ? C.muted : C.text }} />
+            </div>
+          </div>
+        ))}
       </div>
 
-      <div style={{ background: C.white, borderRadius: 12, padding: '1.25rem', marginBottom: '1rem', border: `1px solid ${C.light}` }}>
-        <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', marginBottom: '1rem', borderBottom: `1px solid ${C.light}`, paddingBottom: '0.5rem' }}>🏢 Gastos Fijos</div>
-        <Input label="Nómina total" field="nomina" section="fijos" />
-        <Input label="Arriendo del local" field="arriendo" section="fijos" />
-        <Input label="Servicios públicos (agua, luz, gas)" field="serviciosPublicos" section="fijos" />
-        <Input label="Internet y telefonía" field="internet" section="fijos" />
-        <Input label="Seguros" field="seguros" section="fijos" />
-        <Input label="Cloudbeds (PMS)" field="cloudbeds" section="fijos" />
-        <Input label="Otros gastos fijos" field="otrosFijos" section="fijos" />
+      {/* Gastos expandibles */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+        <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem' }}>📋 Gastos del mes</div>
+        <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#e67e22' }}>{fmtCOP(totalGeneral)}</div>
       </div>
 
-      <div style={{ background: C.white, borderRadius: 12, padding: '1.25rem', marginBottom: '1rem', border: `1px solid ${C.light}` }}>
-        <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', marginBottom: '1rem', borderBottom: `1px solid ${C.light}`, paddingBottom: '0.5rem' }}>📦 Gastos Variables</div>
-        <Input label="Amenities" field="amenities" section="variables" />
-        <Input label="Lavandería y lencería" field="lavanderia" section="variables" />
-        <Input label="Desayunos y F&B básico" field="desayunos" section="variables" />
-        <Input label="Comisión Booking.com" field="comisionBooking" section="variables" />
-        <Input label="Comisión Expedia" field="comisionExpedia" section="variables" />
-        <Input label="Comisión Airbnb" field="comisionAirbnb" section="variables" />
-        <Input label="Mantenimiento correctivo" field="mantenimiento" section="variables" />
-        <Input label="Otros gastos variables" field="otrosVariables" section="variables" />
-      </div>
+      {cats.map((cat, ci) => {
+        const isOpen = expanded[cat.id]
+        const subtotal = catTotal(cat)
+        return (
+          <div key={cat.id} style={{ background: C.white, borderRadius: 12, marginBottom: '0.6rem', border: `1px solid ${C.light}`, overflow: 'hidden' }}>
+            <div onClick={() => toggle(cat.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.85rem 1rem', cursor: 'pointer', background: isOpen ? '#fafafa' : C.white }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontSize: '0.7rem', color: C.muted, display: 'inline-block', transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>▶</span>
+                <span style={{ fontSize: '1rem' }}>{cat.emoji}</span>
+                <span style={{ fontSize: '0.85rem', fontWeight: 500 }}>{cat.label}</span>
+                <span style={{ fontSize: '0.62rem', color: C.muted }}>({(cat.lineas || []).length})</span>
+              </div>
+              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#e67e22' }}>{fmtCOP(subtotal)}</span>
+            </div>
+
+            {isOpen && (
+              <div style={{ padding: '0.5rem 1rem 1rem', borderTop: `1px solid ${C.light}` }}>
+                <div style={{ marginBottom: '0.6rem' }}>
+                  <label style={{ fontSize: '0.6rem', color: C.muted, display: 'block', marginBottom: '0.2rem' }}>Nombre de la categoría</label>
+                  <input value={cat.label} onChange={e => updCatLabel(ci, e.target.value)} style={inputStyle} />
+                </div>
+                {(cat.lineas || []).map((l, li) => (
+                  <div key={l.id} style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', marginBottom: '0.45rem' }}>
+                    <input value={l.label} onChange={e => updLineaLabel(ci, li, e.target.value)} placeholder="Concepto"
+                      style={{ ...inputStyle, flex: 1.4 }} />
+                    <div style={{ display: 'flex', alignItems: 'center', border: `1px solid ${C.light}`, borderRadius: 8, overflow: 'hidden', flex: 1 }}>
+                      <span style={{ padding: '0.55rem 0.4rem', fontSize: '0.66rem', color: C.muted, borderRight: `1px solid ${C.light}` }}>COP</span>
+                      <input type="number" value={l.valor || ''} onChange={e => updLineaValor(ci, li, Number(e.target.value))} placeholder="0"
+                        style={{ width: '100%', padding: '0.55rem 0.5rem', border: 'none', outline: 'none', fontSize: '0.82rem', fontFamily: 'var(--font-body)' }} />
+                    </div>
+                    <button onClick={() => delLinea(ci, li)} style={{ background: 'none', border: 'none', color: '#e74c3c', fontSize: '1rem', cursor: 'pointer', padding: '0 0.2rem' }}>×</button>
+                  </div>
+                ))}
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.6rem' }}>
+                  <button onClick={() => addLinea(ci)} style={{ background: C.bg, border: `1px solid ${C.light}`, color: C.primaryDark, borderRadius: 8, padding: '0.4rem 0.7rem', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 600 }}>+ Agregar línea</button>
+                  <button onClick={() => delCat(ci)} style={{ background: 'none', border: 'none', color: C.muted, fontSize: '0.68rem', cursor: 'pointer' }}>Eliminar categoría</button>
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })}
+
+      <button onClick={addCat} style={{ width: '100%', background: C.white, border: `1px dashed ${C.light}`, color: C.muted, borderRadius: 10, padding: '0.7rem', fontSize: '0.78rem', cursor: 'pointer', marginBottom: '1rem', marginTop: '0.25rem' }}>+ Agregar categoría</button>
 
       <button onClick={guardar} disabled={saving} style={{
         width: '100%', background: saved ? C.primary : C.dark, color: C.white, border: 'none',
         borderRadius: 12, padding: '0.875rem', fontSize: '0.88rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-body)'
-      }}>{saving ? 'Guardando...' : saved ? '✅ Guardado' : 'Guardar datos del mes'}</button>
+      }}>{saving ? 'Guardando...' : saved ? '✅ Guardado' : 'Guardar gastos del mes'}</button>
     </div>
   )
 }
@@ -415,12 +475,29 @@ export default function OwnerPortal({ onBack, onRevenue }) {
     finally { setLoading(false) }
   }
 
-  function handleGastoChange(section, field, value) {
-    setData(prev => ({ ...prev, gastos: { ...prev.gastos, [section]: { ...prev.gastos[section], [field]: value } } }))
+  function setGastos(newGastos) {
+    setData(prev => ({ ...prev, gastos: newGastos }))
   }
 
   const r = data?.resumen || {}
   const cb = data?.cloudbeds || {}
+  const ing = data?.gastos?.ingresos || {}
+  const cats = data?.gastos?.categorias || []
+  const catManualTotal = cats.reduce((a, c) => a + (c.lineas || []).reduce((s, l) => s + (Number(l.valor) || 0), 0), 0)
+
+  // Filas de liquidación (dinámicas por categoría)
+  const liqRows = []
+  liqRows.push({ label: 'Ingresos habitaciones', val: ing.habitaciones, type: 'ingreso' })
+  liqRows.push({ label: 'Ingresos terraza (F&B)', val: ing.terraza, type: 'ingreso' })
+  liqRows.push({ label: 'Ingresos SPA', val: ing.spa, type: 'ingreso' })
+  liqRows.push({ label: 'Upselling y otros', val: (ing.upselling || 0) + (ing.otrosIngresos || 0), type: 'ingreso' })
+  liqRows.push({ label: '─── TOTAL INGRESOS', val: r.totalIngresos, type: 'subtotal' })
+  ;(data?.categoriasResumen || []).forEach(c => liqRows.push({ label: `${c.emoji || ''} ${c.label}`.trim(), val: -(c.subtotal || 0), type: 'gasto' }))
+  if (r.totalRecibos > 0) liqRows.push({ label: '🧾 Recibos PDF', val: -r.totalRecibos, type: 'gasto' })
+  liqRows.push({ label: '─── GOP (Gross Operating Profit)', val: r.GOP, type: 'subtotal' })
+  liqRows.push({ label: 'Fee fijo SOLARA', val: -r.feeSolaraFijo, type: 'fee' })
+  liqRows.push({ label: 'Fee variable SOLARA (5% GOP)', val: -r.feeSolaraVariable, type: 'fee' })
+  liqRows.push({ label: '═══ UTILIDAD NETA', val: r.utilidadNeta, type: 'total' })
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-body)' }}>
@@ -522,11 +599,11 @@ export default function OwnerPortal({ onBack, onRevenue }) {
                 <div style={{ background: C.white, borderRadius: 12, padding: '1.25rem', marginBottom: '1rem', border: `1px solid ${C.light}` }}>
                   <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', marginBottom: '1rem' }}>Por fuente</div>
                   {[
-                    { label: '🏨 Habitaciones', val: data.gastos.ingresos.habitaciones, fuente: 'Cloudbeds' },
-                    { label: '🍕 Terraza / F&B', val: data.gastos.ingresos.terraza, fuente: 'Manual' },
-                    { label: '💆 SPA', val: data.gastos.ingresos.spa, fuente: 'Manual' },
-                    { label: '✨ Upselling', val: data.gastos.ingresos.upselling, fuente: 'Manual' },
-                    { label: '📦 Otros', val: data.gastos.ingresos.otrosIngresos, fuente: 'Manual' },
+                    { label: '🏨 Habitaciones', val: ing.habitaciones, fuente: 'Cloudbeds' },
+                    { label: '🍕 Terraza / F&B', val: ing.terraza, fuente: 'Manual' },
+                    { label: '💆 SPA', val: ing.spa, fuente: 'Manual' },
+                    { label: '✨ Upselling', val: ing.upselling, fuente: 'Manual' },
+                    { label: '📦 Otros', val: ing.otrosIngresos, fuente: 'Manual' },
                   ].map((item, i) => {
                     const pct = r.totalIngresos > 0 ? Math.round(((item.val || 0) / r.totalIngresos) * 100) : 0
                     return (
@@ -569,12 +646,11 @@ export default function OwnerPortal({ onBack, onRevenue }) {
 
             {seccion === 'gastos' && (
               <div>
-                <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: 300, marginBottom: '0.25rem' }}>Gastos e Ingresos Manuales</div>
-                <div style={{ fontSize: '0.78rem', color: C.muted, marginBottom: '1.25rem' }}>Ingresos manuales (Terraza, SPA) y gastos recurrentes que no vienen de recibos PDF</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem', marginBottom: '1.25rem' }}>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: 300, marginBottom: '0.25rem' }}>Gastos e Ingresos del Mes</div>
+                <div style={{ fontSize: '0.78rem', color: C.muted, marginBottom: '1.25rem' }}>Toca una categoría para expandirla y editar sus líneas. El mes arranca con los valores del mes anterior.</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '1.25rem' }}>
                   {[
-                    { label: 'Fijos', val: r.totalFijos, color: '#3498db' },
-                    { label: 'Variables', val: r.totalVariables, color: '#e67e22' },
+                    { label: 'Gastos manuales', val: catManualTotal, color: '#e67e22' },
                     { label: 'Recibos PDF', val: r.totalRecibos, color: '#9b59b6' },
                   ].map((k, i) => (
                     <div key={i} style={{ background: C.white, borderRadius: 10, padding: '0.75rem', border: `1px solid ${C.light}`, borderTop: `3px solid ${k.color}` }}>
@@ -583,7 +659,7 @@ export default function OwnerPortal({ onBack, onRevenue }) {
                     </div>
                   ))}
                 </div>
-                <GastosForm gastos={data.gastos} onChange={handleGastoChange} mes={mes} />
+                <GastosEditor gastos={data.gastos} mes={mes} onChange={setGastos} onSaved={cargarDatos} />
               </div>
             )}
 
@@ -593,27 +669,14 @@ export default function OwnerPortal({ onBack, onRevenue }) {
                 <div style={{ fontSize: '0.78rem', color: C.muted, marginBottom: '1.25rem' }}>Resumen completo de {mes}</div>
                 <div style={{ background: C.dark, borderRadius: 14, padding: '1.5rem', marginBottom: '1rem' }}>
                   <div style={{ color: C.primary, fontSize: '0.78rem', fontWeight: 600, marginBottom: '1rem', fontFamily: 'var(--font-display)', letterSpacing: '0.1em' }}>✳ CUENTA DE RESULTADOS · {mes.toUpperCase()}</div>
-                  {[
-                    { label: 'Ingresos habitaciones', val: data.gastos.ingresos.habitaciones, type: 'ingreso' },
-                    { label: 'Ingresos terraza (F&B)', val: data.gastos.ingresos.terraza, type: 'ingreso' },
-                    { label: 'Ingresos SPA', val: data.gastos.ingresos.spa, type: 'ingreso' },
-                    { label: 'Upselling y otros', val: (data.gastos.ingresos.upselling || 0) + (data.gastos.ingresos.otrosIngresos || 0), type: 'ingreso' },
-                    { label: '─── TOTAL INGRESOS', val: r.totalIngresos, type: 'subtotal' },
-                    { label: 'Gastos fijos', val: -r.totalFijos, type: 'gasto' },
-                    { label: 'Gastos variables', val: -r.totalVariables, type: 'gasto' },
-                    { label: 'Recibos PDF', val: -r.totalRecibos, type: 'gasto' },
-                    { label: '─── GOP (Gross Operating Profit)', val: r.GOP, type: 'subtotal' },
-                    { label: 'Fee fijo SOLARA', val: -r.feeSolaraFijo, type: 'fee' },
-                    { label: 'Fee variable SOLARA (5% GOP)', val: -r.feeSolaraVariable, type: 'fee' },
-                    { label: '═══ UTILIDAD NETA', val: r.utilidadNeta, type: 'total' },
-                  ].map((row, i) => (
+                  {liqRows.map((row, i) => (
                     <div key={i} style={{
                       display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0',
                       borderBottom: ['subtotal', 'total'].includes(row.type) ? `1px solid rgba(255,255,255,0.15)` : `1px solid rgba(255,255,255,0.05)`,
                       marginTop: row.type === 'total' ? '0.5rem' : 0
                     }}>
                       <span style={{ fontSize: row.type === 'total' ? '0.85rem' : '0.75rem', color: row.type === 'subtotal' ? '#ddd' : row.type === 'total' ? C.white : '#888', fontWeight: ['subtotal', 'total'].includes(row.type) ? 600 : 400 }}>{row.label}</span>
-                      <span style={{ fontSize: row.type === 'total' ? '0.95rem' : '0.82rem', fontWeight: ['subtotal', 'total'].includes(row.type) ? 700 : 400, color: row.type === 'total' ? (r.utilidadNeta >= 0 ? C.primary : '#e74c3c') : row.type === 'subtotal' ? '#ddd' : row.type === 'fee' ? '#e67e22' : row.val >= 0 ? C.primary : '#888' }}>
+                      <span style={{ fontSize: row.type === 'total' ? '0.95rem' : '0.82rem', fontWeight: ['subtotal', 'total'].includes(row.type) ? 700 : 400, color: row.type === 'total' ? (r.utilidadNeta >= 0 ? C.primary : '#e74c3c') : row.type === 'subtotal' ? '#ddd' : row.type === 'fee' ? '#e67e22' : (row.val >= 0 ? C.primary : '#888') }}>
                         {row.val >= 0 ? fmtCOP(row.val) : `- ${fmtCOP(Math.abs(row.val))}`}
                       </span>
                     </div>
@@ -623,8 +686,8 @@ export default function OwnerPortal({ onBack, onRevenue }) {
                 <div style={{ background: C.white, borderRadius: 12, padding: '1.25rem', border: `1px solid ${C.light}` }}>
                   <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', marginBottom: '1rem' }}>Estructura de costos</div>
                   {[
-                    { label: 'Gastos fijos / Ingresos', val: r.totalIngresos > 0 ? Math.round((r.totalFijos / r.totalIngresos) * 100) : 0, color: '#3498db' },
-                    { label: 'Gastos variables / Ingresos', val: r.totalIngresos > 0 ? Math.round((r.totalVariables / r.totalIngresos) * 100) : 0, color: '#e67e22' },
+                    { label: 'Gastos operativos / Ingresos', val: r.totalIngresos > 0 ? Math.round((r.totalCategorias / r.totalIngresos) * 100) : 0, color: '#3498db' },
+                    { label: 'Recibos PDF / Ingresos', val: r.totalIngresos > 0 ? Math.round((r.totalRecibos / r.totalIngresos) * 100) : 0, color: '#e67e22' },
                     { label: 'Fee SOLARA / Ingresos', val: r.totalIngresos > 0 ? Math.round((r.feeSolaraTotal / r.totalIngresos) * 100) : 0, color: C.primary },
                     { label: 'Margen neto', val: r.totalIngresos > 0 ? Math.round((r.utilidadNeta / r.totalIngresos) * 100) : 0, color: C.primaryDark },
                   ].map((k, i) => (
