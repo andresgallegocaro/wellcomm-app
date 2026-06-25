@@ -1,5 +1,12 @@
 const KV_URL = process.env.KV_REST_API_URL
 const KV_TOKEN = process.env.KV_REST_API_TOKEN
+const NOTION_TOKEN = process.env.NOTION_TOKEN
+
+// === Base de Notion: ventas por outlet (A&B y Spa reales) ===
+// Consolida por el campo "Grupo": The Terrace (F&B) = Terraza+Cocina+Eventos; AKEN Spa.
+const VENTAS_DB_ID = '98c9326cda034e5dbb2880a85bc654ce'
+const VENTAS_DS_ID = '1e3c351b-d8be-42cf-a15e-b8f5f02011da'
+const MESES_COL = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 
 // ════════════════════════════════════════════════════════════════════
 // PRESUPUESTO OFICIAL 2026 — APROBADO POR ACCIONISTAS
@@ -308,6 +315,84 @@ function calcularBARRecomendado(tipoHab, ocupacionActual, fecha, preciosCompeten
   }
 }
 
+// ════════════════════════════════════════════════════════════════════
+// LECTURA DE NOTION — ventas reales de A&B y Spa (fuente única)
+// Intenta el endpoint nuevo (data source, v2025-09-03) y cae al clásico
+// (databases, v2022-06-28). Consolida por el campo "Grupo".
+// ════════════════════════════════════════════════════════════════════
+async function notionQueryAll(dbId, dsId) {
+  const intentos = [
+    { url: `https://api.notion.com/v1/data_sources/${dsId}/query`, version: '2025-09-03' },
+    { url: `https://api.notion.com/v1/databases/${dbId}/query`, version: '2022-06-28' },
+  ]
+  for (const intento of intentos) {
+    try {
+      let results = []
+      let cursor = undefined
+      let ok = true
+      for (let i = 0; i < 5; i++) {
+        const reqBody = { page_size: 100 }
+        if (cursor) reqBody.start_cursor = cursor
+        const res = await fetch(intento.url, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${NOTION_TOKEN}`,
+            'Notion-Version': intento.version,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(reqBody)
+        })
+        if (!res.ok) { ok = false; break }
+        const data = await res.json()
+        results = results.concat(data.results || [])
+        if (!data.has_more) break
+        cursor = data.next_cursor
+      }
+      if (ok && results.length) return results
+    } catch (e) { /* siguiente intento */ }
+  }
+  return []
+}
+
+function numProp(props, name) {
+  const p = props[name]
+  if (!p) return 0
+  return Number(p.number) || 0
+}
+function titleProp(props, name) {
+  const p = props[name]
+  if (!p || !p.title) return ''
+  return p.title.map(t => t.plain_text || '').join('')
+}
+function selectProp(props, name) {
+  const p = props[name]
+  if (!p || !p.select) return ''
+  return p.select.name || ''
+}
+
+// Lee las ventas reales de A&B y Spa del mes desde la base de outlets de Notion.
+// Consolida por "Grupo" (The Terrace = Terraza+Cocina+Eventos; AKEN Spa) y si no
+// hay Grupo, cae al nombre del outlet. Habitaciones NO se lee aquí (viene de Cloudbeds).
+async function getIngresosNotion(anioMes) {
+  const mesNum = parseInt(anioMes.split('-')[1])
+  const col = MESES_COL[mesNum]
+  const out = { terraza: 0, spa: 0, upselling: 0, otrosIngresos: 0 }
+  const filas = await notionQueryAll(VENTAS_DB_ID, VENTAS_DS_ID)
+  filas.forEach(f => {
+    const props = f.properties
+    const grupo = (selectProp(props, 'Grupo') || '').toLowerCase()
+    const outlet = (titleProp(props, 'Outlet') || '').toLowerCase()
+    const valor = numProp(props, col)
+    const ref = grupo || outlet
+    if (ref.includes('habitacion')) return // habitaciones viene de Cloudbeds
+    if (ref.includes('terrace') || ref.includes('terraza') || ref.includes('f&b') || ref.includes('cocina') || ref.includes('evento')) out.terraza += valor
+    else if (ref.includes('aken') || ref.includes('spa')) out.spa += valor
+    else if (ref.includes('upsell')) out.upselling += valor
+    else if (ref.includes('otro')) out.otrosIngresos += valor
+  })
+  return out
+}
+
 export default async function handler(req, res) {
   try {
     res.setHeader('Access-Control-Allow-Origin', '*')
@@ -376,13 +461,12 @@ export default async function handler(req, res) {
       const pptoAB = getPresupuestoSimple('ab')
       const pptoSpa = getPresupuestoSimple('spa')
 
-      const [realHab, gastosMes] = await Promise.all([
+      const [realHab, ingNotion] = await Promise.all([
         getRealMes(headers, mesPedido),
-        kvGet(`gastos_${mesPedido}`),
+        getIngresosNotion(mesPedido),
       ])
-      const ingManual = gastosMes?.ingresos || {}
-      const realABVentas = Number(ingManual.terraza) || 0
-      const realSpaVentas = Number(ingManual.spa) || 0
+      const realABVentas = ingNotion.terraza
+      const realSpaVentas = ingNotion.spa
 
       const pptoHabVentas = pptoHab[mesNum]?.ventas || 0
       const pptoABVentas = pptoAB[mesNum]?.ventas || 0
@@ -396,11 +480,11 @@ export default async function handler(req, res) {
           ppto: pptoHabVentas, real: realHab.ventas, cumplimiento: pct(realHab.ventas, pptoHabVentas),
         },
         {
-          id: 'ab', label: '🍽️ A&B / Terraza', fuente: 'Ingreso manual (Portal)',
+          id: 'ab', label: '🍽️ The Terrace (F&B)', fuente: 'Poster · Notion',
           ppto: pptoABVentas, real: realABVentas, cumplimiento: pct(realABVentas, pptoABVentas),
         },
         {
-          id: 'spa', label: '💆 Spa', fuente: 'Ingreso manual (Portal)',
+          id: 'spa', label: '💆 AKEN Spa', fuente: 'Poster · Notion',
           ppto: pptoSpaVentas, real: realSpaVentas, cumplimiento: pct(realSpaVentas, pptoSpaVentas),
         },
       ]
@@ -596,18 +680,17 @@ export default async function handler(req, res) {
         const presupuesto = getPresupuesto()
         const pptoAB = getPresupuestoSimple('ab')
         const pptoSpa = getPresupuestoSimple('spa')
-        const gastosMes = await kvGet(`gastos_${today.slice(0, 7)}`)
+        const ingNotion = await getIngresosNotion(today.slice(0, 7))
         const pptoMes = presupuesto[mesActualNum]
-        const ingManual = gastosMes?.ingresos || {}
         let bloquePresupuesto = ''
         if (pptoMes) {
           bloquePresupuesto = `
 
 PRESUPUESTO OFICIAL DE ${pptoMes.mes.toUpperCase()} 2026 (aprobado por accionistas):
 - HABITACIONES: ventas $${pptoMes.ventas.toLocaleString('es-CO')} COP | ${pptoMes.habVendidas} hab-noche | tarifa $${pptoMes.tarifa.toLocaleString('es-CO')} | ocup. ${(pptoMes.ocupacion * 100).toFixed(1)}%
-- A&B / TERRAZA: ventas presupuestadas $${(pptoAB[mesActualNum]?.ventas || 0).toLocaleString('es-CO')} COP | real registrado $${(Number(ingManual.terraza) || 0).toLocaleString('es-CO')} COP
-- SPA: ventas presupuestadas $${(pptoSpa[mesActualNum]?.ventas || 0).toLocaleString('es-CO')} COP | real registrado $${(Number(ingManual.spa) || 0).toLocaleString('es-CO')} COP
-Compara el ritmo real contra estos presupuestos cuando sea relevante. El real de A&B y Spa se ingresa manualmente cada día en el Portal del Propietario.`
+- THE TERRACE (F&B): ventas presupuestadas $${(pptoAB[mesActualNum]?.ventas || 0).toLocaleString('es-CO')} COP | real registrado $${(ingNotion.terraza || 0).toLocaleString('es-CO')} COP
+- AKEN SPA: ventas presupuestadas $${(pptoSpa[mesActualNum]?.ventas || 0).toLocaleString('es-CO')} COP | real registrado $${(ingNotion.spa || 0).toLocaleString('es-CO')} COP
+Compara el ritmo real contra estos presupuestos cuando sea relevante. El real de The Terrace y AKEN Spa proviene de Poster (registrado en Notion).`
         }
 
         const contexto = `Eres el Revenue Manager senior de WELLcomm Spa & Hotel, boutique wellness de 25 habitaciones en Manila, Medellín, Colombia. Gestionado por SOLARA Homes.
