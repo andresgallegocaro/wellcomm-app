@@ -129,7 +129,7 @@ async function getRealMes(headers, anioMes) {
 
   let reservas = []
   try {
-    for (let page = 1; page <= 6; page++) {
+    for (let page = 1; page <= 10; page++) {
       const r = await fetch(`https://api.cloudbeds.com/api/v1.1/getReservations?checkInTo=${ultimoDia}&checkOutFrom=${primerDia}&pageSize=100&pageNumber=${page}`, { headers })
       const lote = normalizar(await r.json())
       reservas = reservas.concat(lote)
