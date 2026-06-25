@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { exportarExcelInforme, exportarPDFInforme } from './exportInforme'
 
 const C = {
   bg: '#E8F0EC', dark: '#1A1A1A', primary: '#7EC8A0', primaryDark: '#5aaa80',
@@ -373,6 +374,18 @@ function GastosEditor({ gastos, mes, onChange, onSaved }) {
     } finally { setSaving(false) }
   }
 
+  async function restablecer() {
+    if (!confirm(`¿Restablecer ${mes} a sus valores originales del balance? Se borrarán las ediciones manuales de este mes.`)) return
+    setSaving(true)
+    try {
+      await fetch('/api/propietario', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reset_gastos', mes })
+      })
+      if (onSaved) await onSaved()
+    } finally { setSaving(false) }
+  }
+
   const inputStyle = { width: '100%', padding: '0.55rem 0.65rem', border: `1px solid ${C.light}`, borderRadius: 8, fontSize: '0.85rem', fontFamily: 'var(--font-body)', outline: 'none', boxSizing: 'border-box' }
 
   return (
@@ -454,6 +467,11 @@ function GastosEditor({ gastos, mes, onChange, onSaved }) {
         width: '100%', background: saved ? C.primary : C.dark, color: C.white, border: 'none',
         borderRadius: 12, padding: '0.875rem', fontSize: '0.88rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-body)'
       }}>{saving ? 'Guardando...' : saved ? '✅ Guardado' : 'Guardar gastos del mes'}</button>
+
+      <button onClick={restablecer} disabled={saving} style={{
+        width: '100%', background: 'transparent', color: C.muted, border: `1px solid ${C.light}`,
+        borderRadius: 12, padding: '0.7rem', fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'var(--font-body)', marginTop: '0.6rem'
+      }}>↺ Restablecer este mes a los valores del balance</button>
     </div>
   )
 }
@@ -485,7 +503,7 @@ export default function OwnerPortal({ onBack, onRevenue }) {
   const cats = data?.gastos?.categorias || []
   const catManualTotal = cats.reduce((a, c) => a + (c.lineas || []).reduce((s, l) => s + (Number(l.valor) || 0), 0), 0)
 
-  // Filas de liquidación (dinámicas por categoría)
+  // Filas de liquidación (dinámicas por categoría) — sin fee fijo
   const liqRows = []
   liqRows.push({ label: 'Ingresos habitaciones', val: ing.habitaciones, type: 'ingreso' })
   liqRows.push({ label: 'Ingresos terraza (F&B)', val: ing.terraza, type: 'ingreso' })
@@ -495,7 +513,6 @@ export default function OwnerPortal({ onBack, onRevenue }) {
   ;(data?.categoriasResumen || []).forEach(c => liqRows.push({ label: `${c.emoji || ''} ${c.label}`.trim(), val: -(c.subtotal || 0), type: 'gasto' }))
   if (r.totalRecibos > 0) liqRows.push({ label: '🧾 Recibos PDF', val: -r.totalRecibos, type: 'gasto' })
   liqRows.push({ label: '─── GOP (Gross Operating Profit)', val: r.GOP, type: 'subtotal' })
-  liqRows.push({ label: 'Fee fijo SOLARA', val: -r.feeSolaraFijo, type: 'fee' })
   liqRows.push({ label: 'Fee variable SOLARA (5% GOP)', val: -r.feeSolaraVariable, type: 'fee' })
   liqRows.push({ label: '═══ UTILIDAD NETA', val: r.utilidadNeta, type: 'total' })
 
@@ -580,11 +597,10 @@ export default function OwnerPortal({ onBack, onRevenue }) {
                 <div style={{ background: C.dark, borderRadius: 12, padding: '1.25rem' }}>
                   <div style={{ color: C.primary, fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.75rem', fontFamily: 'var(--font-display)' }}>✳ Fee SOLARA — {mes}</div>
                   {[
-                    { label: 'Fee fijo mensual', val: fmtCOP(r.feeSolaraFijo), color: '#aaa' },
                     { label: `Fee variable (5% GOP)`, val: fmtCOP(r.feeSolaraVariable), color: '#aaa' },
                     { label: 'Total fee SOLARA', val: fmtCOP(r.feeSolaraTotal), color: C.primary, bold: true },
                   ].map((row, i) => (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: i < 2 ? `1px solid rgba(255,255,255,0.08)` : 'none' }}>
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: i < 1 ? `1px solid rgba(255,255,255,0.08)` : 'none' }}>
                       <span style={{ fontSize: '0.78rem', color: '#888' }}>{row.label}</span>
                       <span style={{ fontSize: '0.82rem', color: row.color, fontWeight: row.bold ? 700 : 400 }}>{row.val}</span>
                     </div>
@@ -666,7 +682,11 @@ export default function OwnerPortal({ onBack, onRevenue }) {
             {seccion === 'liquidacion' && (
               <div>
                 <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: 300, marginBottom: '0.25rem' }}>Liquidación Mensual</div>
-                <div style={{ fontSize: '0.78rem', color: C.muted, marginBottom: '1.25rem' }}>Resumen completo de {mes}</div>
+                <div style={{ fontSize: '0.78rem', color: C.muted, marginBottom: '0.75rem' }}>Resumen completo de {mes}</div>
+                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem' }}>
+                  <button onClick={() => exportarPDFInforme(data, mes)} style={{ flex: 1, background: C.dark, color: '#fff', border: 'none', borderRadius: 10, padding: '0.6rem', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-body)' }}>⬇ Exportar PDF</button>
+                  <button onClick={() => exportarExcelInforme(data, mes)} style={{ flex: 1, background: C.white, color: C.dark, border: `1px solid ${C.light}`, borderRadius: 10, padding: '0.6rem', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-body)' }}>⬇ Exportar Excel</button>
+                </div>
                 <div style={{ background: C.dark, borderRadius: 14, padding: '1.5rem', marginBottom: '1rem' }}>
                   <div style={{ color: C.primary, fontSize: '0.78rem', fontWeight: 600, marginBottom: '1rem', fontFamily: 'var(--font-display)', letterSpacing: '0.1em' }}>✳ CUENTA DE RESULTADOS · {mes.toUpperCase()}</div>
                   {liqRows.map((row, i) => (
