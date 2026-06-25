@@ -1,6 +1,7 @@
 // Exportación con identidad WELLcomm
 // (1) Informe financiero mensual (Liquidación)  →  exportarPDFInforme / exportarExcelInforme
 // (2) Presupuesto vs Real · Habitaciones        →  exportarPDFPresupuesto / exportarExcelPresupuesto
+// (3) Ppto 360 · Líneas de negocio              →  exportarPDFP360 / exportarExcelP360
 
 function fmtCOP(n) { return `COP ${Number(n || 0).toLocaleString('es-CO')}` }
 function signo(v) { return v >= 0 ? fmtCOP(v) : `- ${fmtCOP(Math.abs(v))}` }
@@ -361,6 +362,154 @@ export function exportarPDFPresupuesto(pptoData, mes) {
         ${filasHTML}
       </table>
       <div class="nota">El "real" se calcula en vivo desde Cloudbeds, noche por noche, sobre las reservas válidas (check-in, check-out y confirmadas) del mes.</div>
+
+      ${anualBloque}
+
+      <div class="footer">
+        <span>WELLcomm Spa &amp; Hotel · El Poblado, Medellín · Operación Wllmm SAS</span>
+        <span>Generado ${new Date().toLocaleDateString('es-CO')}</span>
+      </div>
+    </div>
+    <script>window.onload=function(){setTimeout(function(){window.print()},400)}</script>
+  </body></html>`
+
+  w.document.open(); w.document.write(html); w.document.close()
+}
+
+// ===================== EXCEL — PPTO 360 · LÍNEAS DE NEGOCIO (.xls) =====================
+export function exportarExcelP360(p360Data, mes) {
+  if (!p360Data || !p360Data.lineas) { alert('No hay datos de Ppto 360 para exportar.'); return }
+  const mesLabel = p360Data.mes || mes
+  const lineas = p360Data.lineas || []
+  const anual = p360Data.anual || []
+  const tot = p360Data.totalesAnio || {}
+
+  const th = `style="background:${MARCA.negro};color:#fff;padding:6px 10px;font-weight:bold;text-align:left"`
+  const td = `style="padding:5px 10px;border-bottom:1px solid #e5e5e5"`
+  const tdr = `style="padding:5px 10px;border-bottom:1px solid #e5e5e5;text-align:right"`
+
+  let h = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"></head><body style="font-family:Arial,sans-serif">`
+
+  h += `<table><tr><td style="font-size:20px;font-weight:bold;color:${MARCA.negro}">✳ WELLCOMM &nbsp;Spa &amp; Hotel</td></tr>
+  <tr><td style="font-size:13px;color:${MARCA.muted}">Ppto 360 · Líneas de negocio · ${mesLabel} 2026</td></tr>
+  <tr><td style="font-size:11px;color:${MARCA.muted}">Where you are the luxury</td></tr></table><br/>`
+
+  h += `<table><tr><td style="font-size:14px;font-weight:bold;color:${MARCA.negro}">Cumplimiento consolidado: ${p360Data.cumplimientoTotal}%</td></tr>
+  <tr><td style="font-size:11px;color:${MARCA.muted}">Real: ${fmtCOP(p360Data.totalReal)} &nbsp;·&nbsp; Presupuesto: ${fmtCOP(p360Data.totalPpto)}</td></tr></table><br/>`
+
+  h += `<table border="0" cellspacing="0"><tr><td ${th}>Línea de negocio</td><td ${th}>Presupuesto</td><td ${th}>Real</td><td ${th}>Diferencia</td><td ${th}>%</td></tr>`
+  lineas.forEach(l => {
+    const dif = (l.real || 0) - (l.ppto || 0)
+    h += `<tr><td ${td}>${l.label}</td><td ${tdr}>${fmtCOP(l.ppto)}</td><td style="padding:5px 10px;border-bottom:1px solid #e5e5e5;text-align:right;font-weight:bold">${fmtCOP(l.real)}</td><td style="padding:5px 10px;border-bottom:1px solid #e5e5e5;text-align:right;color:${dif >= 0 ? '#27ae60' : MARCA.coral}">${signo(dif)}</td><td style="padding:5px 10px;border-bottom:1px solid #e5e5e5;text-align:right;font-weight:bold;color:${colorCump(l.cumplimiento)}">${l.cumplimiento}%</td></tr>`
+  })
+  h += `<tr><td style="background:${MARCA.sage};padding:6px 10px;font-weight:bold">TOTAL CONSOLIDADO</td><td style="background:${MARCA.sage};padding:6px 10px;text-align:right;font-weight:bold">${fmtCOP(p360Data.totalPpto)}</td><td style="background:${MARCA.sage};padding:6px 10px;text-align:right;font-weight:bold">${fmtCOP(p360Data.totalReal)}</td><td style="background:${MARCA.sage};padding:6px 10px;text-align:right;font-weight:bold">${signo((p360Data.totalReal || 0) - (p360Data.totalPpto || 0))}</td><td style="background:${MARCA.sage};padding:6px 10px;text-align:right;font-weight:bold">${p360Data.cumplimientoTotal}%</td></tr></table><br/>`
+
+  if (anual.length) {
+    h += `<table border="0" cellspacing="0"><tr><td ${th}>Mes</td><td ${th}>Habitaciones</td><td ${th}>A&amp;B</td><td ${th}>Spa</td><td ${th}>Total</td></tr>`
+    anual.forEach(m => {
+      const bg = m.esMesActual ? `background:${MARCA.sage};font-weight:bold;` : ''
+      h += `<tr><td style="padding:5px 10px;border-bottom:1px solid #e5e5e5;${bg}">${m.mes}</td><td style="padding:5px 10px;border-bottom:1px solid #e5e5e5;text-align:right;${bg}">${fmtCOP(m.habitaciones)}</td><td style="padding:5px 10px;border-bottom:1px solid #e5e5e5;text-align:right;${bg}">${fmtCOP(m.ab)}</td><td style="padding:5px 10px;border-bottom:1px solid #e5e5e5;text-align:right;${bg}">${fmtCOP(m.spa)}</td><td style="padding:5px 10px;border-bottom:1px solid #e5e5e5;text-align:right;font-weight:bold;${bg}">${fmtCOP(m.total)}</td></tr>`
+    })
+    h += `<tr><td style="background:${MARCA.negro};color:#fff;padding:6px 10px;font-weight:bold">TOTAL AÑO</td><td style="background:${MARCA.negro};color:#fff;padding:6px 10px;text-align:right;font-weight:bold">${fmtCOP(tot.habitaciones)}</td><td style="background:${MARCA.negro};color:#fff;padding:6px 10px;text-align:right;font-weight:bold">${fmtCOP(tot.ab)}</td><td style="background:${MARCA.negro};color:#fff;padding:6px 10px;text-align:right;font-weight:bold">${fmtCOP(tot.spa)}</td><td style="background:${MARCA.negro};color:#fff;padding:6px 10px;text-align:right;font-weight:bold">${fmtCOP(tot.total)}</td></tr></table>`
+  }
+
+  h += `</body></html>`
+
+  const blob = new Blob(['\ufeff', h], { type: 'application/vnd.ms-excel' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `WELLcomm_Ppto360_${mes}.xls`
+  document.body.appendChild(a); a.click(); document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+// ===================== PDF — PPTO 360 · LÍNEAS DE NEGOCIO =====================
+export function exportarPDFP360(p360Data, mes) {
+  if (!p360Data || !p360Data.lineas) { alert('No hay datos de Ppto 360 para exportar.'); return }
+  const w = window.open('', '_blank')
+  if (!w) { alert('Permite las ventanas emergentes para generar el PDF.'); return }
+
+  const mesLabel = p360Data.mes || mes
+  const lineas = p360Data.lineas || []
+  const anual = p360Data.anual || []
+  const tot = p360Data.totalesAnio || {}
+  const difTotal = (p360Data.totalReal || 0) - (p360Data.totalPpto || 0)
+
+  const lineasHTML = lineas.map(l => {
+    const dif = (l.real || 0) - (l.ppto || 0)
+    return `<tr><td>${l.label}<div class="fuente">${l.fuente || ''}</div></td><td class="ppto">${fmtCOP(l.ppto)}</td><td class="real">${fmtCOP(l.real)}</td><td class="dif" style="color:${dif >= 0 ? '#27ae60' : MARCA.coral}">${signo(dif)}</td><td class="pct" style="color:${colorCump(l.cumplimiento)}">${l.cumplimiento}%</td></tr>`
+  }).join('')
+
+  const anualHTML = anual.map(m =>
+    `<tr${m.esMesActual ? ' class="hoy"' : ''}><td>${m.mes}</td><td style="text-align:right">${fmtCOP(m.habitaciones)}</td><td style="text-align:right">${fmtCOP(m.ab)}</td><td style="text-align:right">${fmtCOP(m.spa)}</td><td style="text-align:right;font-weight:700">${fmtCOP(m.total)}</td></tr>`
+  ).join('')
+
+  const anualBloque = anual.length ? `
+    <h2>Presupuesto anual consolidado 2026</h2>
+    <table class="tbl">
+      <tr class="head"><th>Mes</th><th style="text-align:right">Habitaciones</th><th style="text-align:right">A&amp;B</th><th style="text-align:right">Spa</th><th style="text-align:right">Total</th></tr>
+      ${anualHTML}
+      <tr class="totA"><td>TOTAL AÑO</td><td style="text-align:right">${fmtCOP(tot.habitaciones)}</td><td style="text-align:right">${fmtCOP(tot.ab)}</td><td style="text-align:right">${fmtCOP(tot.spa)}</td><td style="text-align:right">${fmtCOP(tot.total)}</td></tr>
+    </table>` : ''
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>WELLcomm · Ppto 360 ${mes}</title>
+  <style>
+    @page { size: A4; margin: 16mm 14mm; }
+    * { box-sizing: border-box; }
+    body { font-family: 'Helvetica Neue', Arial, sans-serif; color: ${MARCA.negro}; margin: 0; }
+    .head-bar { background: ${MARCA.negro}; color: #fff; padding: 22px 26px; display: flex; align-items: center; gap: 16px; }
+    .head-bar .wm { font-size: 22px; font-weight: 800; letter-spacing: 4px; }
+    .head-bar .sub { font-size: 11px; color: ${MARCA.sage}; letter-spacing: 1px; margin-top: 2px; }
+    .head-bar .tag { font-size: 10px; color: #bbb; margin-top: 1px; font-style: italic; }
+    .wrap { padding: 22px 26px; }
+    .hero { background: ${MARCA.negro}; color: #fff; border-radius: 10px; padding: 18px 22px; margin-bottom: 6px; }
+    .hero .lbl { font-size: 10px; color: ${MARCA.sage}; letter-spacing: 2px; }
+    .hero .big { font-size: 40px; font-weight: 300; line-height: 1.1; color: ${colorCump(p360Data.cumplimientoTotal)}; }
+    .hero .sub2 { font-size: 12px; color: #ccc; margin-top: 4px; }
+    h2 { font-family: Georgia, serif; font-size: 14px; font-weight: 600; margin: 22px 0 8px; color: ${MARCA.negro}; border-bottom: 2px solid ${MARCA.sage}; padding-bottom: 4px; }
+    .tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .tbl td, .tbl th { padding: 7px 8px; border-bottom: 1px solid #eee; }
+    .tbl .head th { background: ${MARCA.negro}; color: #fff; text-align: left; }
+    .tbl .head th:nth-child(n+2) { text-align: right; }
+    .tbl td.ppto { text-align: right; color: ${MARCA.muted}; }
+    .tbl td.real { text-align: right; font-weight: 700; }
+    .tbl td.dif { text-align: right; font-weight: 600; }
+    .tbl td.pct { text-align: right; font-weight: 800; }
+    .tbl .fuente { font-size: 9px; color: ${MARCA.muted}; font-weight: 400; }
+    .tbl tr.tot td { background: ${MARCA.sage}; font-weight: 800; }
+    .tbl tr.hoy td { background: ${MARCA.sage}40; font-weight: 700; }
+    .tbl tr.totA td { background: ${MARCA.negro}; color: #fff; font-weight: 800; }
+    .footer { margin-top: 26px; border-top: 1px solid #e5e5e5; padding-top: 8px; font-size: 9px; color: ${MARCA.muted}; display: flex; justify-content: space-between; }
+    .nota { font-size: 9px; color: ${MARCA.muted}; margin-top: 8px; font-style: italic; }
+    .noprint { text-align: center; padding: 14px; }
+    .noprint button { background: ${MARCA.negro}; color: #fff; border: none; border-radius: 8px; padding: 10px 18px; font-size: 13px; cursor: pointer; }
+    @media print { .noprint { display: none; } }
+  </style></head>
+  <body>
+    <div class="noprint"><button onclick="window.print()">⬇ Guardar como PDF / Imprimir</button></div>
+    <div class="head-bar">
+      ${isotipo(MARCA.mint, 46)}
+      <div>
+        <div class="wm">WELLCOMM</div>
+        <div class="sub">SPA &amp; HOTEL · PPTO 360 · LÍNEAS DE NEGOCIO · ${mesLabel.toUpperCase()} 2026</div>
+        <div class="tag">Where you are the luxury</div>
+      </div>
+    </div>
+    <div class="wrap">
+      <div class="hero">
+        <div class="lbl">INGRESOS TOTALES · CUMPLIMIENTO CONSOLIDADO</div>
+        <div class="big">${p360Data.cumplimientoTotal}%</div>
+        <div class="sub2">Real: ${fmtCOP(p360Data.totalReal)} &nbsp;·&nbsp; Presupuesto: ${fmtCOP(p360Data.totalPpto)} &nbsp;·&nbsp; ${difTotal >= 0 ? '▲' : '▼'} ${signo(difTotal)}</div>
+      </div>
+
+      <h2>Detalle por línea de negocio</h2>
+      <table class="tbl">
+        <tr class="head"><th>Línea</th><th>Presupuesto</th><th>Real</th><th>Diferencia</th><th>%</th></tr>
+        ${lineasHTML}
+        <tr class="tot"><td>TOTAL CONSOLIDADO</td><td style="text-align:right">${fmtCOP(p360Data.totalPpto)}</td><td style="text-align:right">${fmtCOP(p360Data.totalReal)}</td><td style="text-align:right">${signo(difTotal)}</td><td style="text-align:right">${p360Data.cumplimientoTotal}%</td></tr>
+      </table>
+      <div class="nota">Habitaciones en vivo desde Cloudbeds, noche por noche · A&amp;B y Spa desde los ingresos manuales del Portal del Propietario.</div>
 
       ${anualBloque}
 
