@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { exportarPDFPresupuesto, exportarExcelPresupuesto } from './exportInforme'
 
 function fmt(n) {
   if (!n) return '$0'
@@ -517,6 +518,13 @@ export default function RevenueManager({ onBack }) {
               <input type="month" value={pptoMes} onChange={e => setPptoMes(e.target.value)}
                 style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.4rem 0.6rem', fontSize: '0.8rem', fontFamily: 'var(--font-body)' }} />
             </div>
+
+            {!pptoLoading && pptoData?.cumplimiento && (
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button onClick={() => exportarPDFPresupuesto(pptoData, pptoMes)} style={{ flex: 1, background: 'var(--color-text)', color: 'white', border: 'none', borderRadius: 10, padding: '0.6rem', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>⬇ Exportar PDF</button>
+                <button onClick={() => exportarExcelPresupuesto(pptoData, pptoMes)} style={{ flex: 1, background: 'white', color: 'var(--color-text)', border: '1px solid var(--color-border)', borderRadius: 10, padding: '0.6rem', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>⬇ Exportar Excel</button>
+              </div>
+            )}
 
             {pptoLoading && (
               <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--color-text-light)' }}>Calculando real desde Cloudbeds...</div>
