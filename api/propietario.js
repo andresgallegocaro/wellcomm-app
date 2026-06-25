@@ -572,9 +572,8 @@ export default async function handler(req, res) {
       const totalIngresos = Object.values(gastos.ingresos).reduce((a, b) => a + (Number(b) || 0), 0)
 
       const GOP = totalIngresos - totalGastos
-      const feeSolaraFijo = 8000000
       const feeSolaraVariable = Math.max(0, Math.round(GOP * 0.05))
-      const feeSolaraTotal = feeSolaraFijo + feeSolaraVariable
+      const feeSolaraTotal = feeSolaraVariable
       const utilidadNeta = GOP - feeSolaraTotal
 
       return res.status(200).json({
@@ -583,7 +582,7 @@ export default async function handler(req, res) {
         categoriasResumen,
         resumen: {
           totalIngresos, totalCategorias, totalRecibos, totalGastos,
-          GOP, feeSolaraFijo, feeSolaraVariable, feeSolaraTotal, utilidadNeta,
+          GOP, feeSolaraVariable, feeSolaraTotal, utilidadNeta,
           ocupacion: cloudbeds.ocupacion, adr: cloudbeds.adr, revpar: cloudbeds.revpar,
           noches: cloudbeds.noches, totalReservas: cloudbeds.totalReservas, canales: cloudbeds.canales,
         }
