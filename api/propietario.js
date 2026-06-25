@@ -59,136 +59,174 @@ const CATEGORIAS = ['F&B', 'Spa', 'Habitaciones', 'Mantenimiento', 'Legal', 'Ser
 const ESTADOS_VALIDOS = ['checked_in', 'checked_out', 'confirmed']
 
 // ============================================================
-// PLANTILLA DE GASTOS — semilla con valores reales de MAYO 2026
-// (extraídos del balance Siigo). Estructura: categorías madre
-// con líneas editables. Cada mes nuevo arranca copiando el mes
-// anterior guardado; si no hay, usa esta plantilla.
+// SEMILLAS DE GASTOS POR MES — valores reales del balance Siigo
+// Estructura por mes: categorías madre + líneas. Orden de meses
+// en el array de cada línea: [ENERO, FEBRERO, MARZO, ABRIL, MAYO]
+// El GET arma la estructura del mes pedido (ene–may) desde aquí.
+// Desde junio en adelante: arrastre del mes anterior guardado.
 // ============================================================
-const PLANTILLA_GASTOS = [
+const MESES_SEMILLA = ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05']
+
+// Cada línea: valores = [ene, feb, mar, abr, may] (en COP, positivos)
+const GASTOS_BASE = [
   {
     id: 'nomina', label: 'Nómina y personal', emoji: '👥',
     lineas: [
-      { id: 'nom1', label: 'Sueldos', valor: 52496268 },
-      { id: 'nom2', label: 'Horas extras y recargos', valor: 7705515 },
-      { id: 'nom3', label: 'Auxilio de transporte', valor: 5239298 },
-      { id: 'nom4', label: 'Incapacidades', valor: 509100 },
-      { id: 'nom5', label: 'Bonificaciones', valor: 300000 },
-      { id: 'nom6', label: 'Cesantías', valor: 5844753 },
-      { id: 'nom7', label: 'Intereses sobre cesantías', valor: 701371 },
-      { id: 'nom8', label: 'Prima de servicios', valor: 5844753 },
-      { id: 'nom9', label: 'Vacaciones', valor: 6532238 },
-      { id: 'nom10', label: 'Aportes ARL', valor: 694906 },
-      { id: 'nom11', label: 'Aportes pensión', valor: 7192362 },
-      { id: 'nom12', label: 'Aportes caja de compensación', valor: 2613159 },
-      { id: 'nom13', label: 'Aportes EPS', valor: 2335 },
-      { id: 'nom14', label: 'Gastos médicos y drogas', valor: 641300 },
-      { id: 'nom15', label: 'Bienestar y atención a empleados', valor: 234800 },
+      { id: 'nom1', label: 'Sueldos', valores: [68278637, 65553008, 72083096, 65467049, 52496268] },
+      { id: 'nom2', label: 'Horas extras y recargos', valores: [9169666, 6775121, 6907119, 9352489, 7705515] },
+      { id: 'nom3', label: 'Auxilio de transporte', valores: [5928461, 5729185, 6202466, 5779004, 5239298] },
+      { id: 'nom4', label: 'Incapacidades', valores: [133333, 822434, 561580, 231427, 509100] },
+      { id: 'nom5', label: 'Bonificaciones', valores: [100000, 1851800, 3067050, 10579892, 300000] },
+      { id: 'nom6', label: 'Cesantías', valores: [7976075, 7198794, 7856753, 9895757, 5844753] },
+      { id: 'nom7', label: 'Intereses sobre cesantías', valores: [5965603, 863855, 942810, 982695, 701371] },
+      { id: 'nom8', label: 'Prima de servicios', valores: [7975775, 7198793, 7856753, 9895757, 5844753] },
+      { id: 'nom9', label: 'Vacaciones', valores: [6537975, 7239441, 3999174, 7036683, 6532238] },
+      { id: 'nom10', label: 'Aportes ARL', valores: [1112888, 981822, 1000288, 1003978, 694906] },
+      { id: 'nom11', label: 'Aportes pensión', valores: [10748444, 10232159, 11043737, 10189754, 7192362] },
+      { id: 'nom12', label: 'Aportes caja de compensación', valores: [3578941, 3419956, 3666363, 3522941, 2613159] },
+      { id: 'nom13', label: 'Aportes EPS', valores: [17509, 60095, 49323, 7278, 2335] },
+      { id: 'nom14', label: 'Gastos médicos y drogas', valores: [645700, 807702, 893700, 814300, 641300] },
+      { id: 'nom15', label: 'Bienestar y atención a empleados', valores: [840000, 10487, 1253672, 357200, 234800] },
+      { id: 'nom16', label: 'Dotación y suministro a trabajadores', valores: [1447000, 234160, 108000, 793000, 0] },
     ]
   },
   {
     id: 'honorarios', label: 'Honorarios y asesorías', emoji: '📐',
     lineas: [
-      { id: 'hon1', label: 'Asesoría jurídica', valor: 1750905 },
-      { id: 'hon2', label: 'Asesoría comercial (RevenueClick)', valor: 3208333 },
-      { id: 'hon3', label: 'Asesoría SST y RRHH', valor: 2860000 },
-      { id: 'hon4', label: 'Asesoría Spa', valor: 3040440 },
+      { id: 'hon1', label: 'Asesoría jurídica', valores: [7420905, 3670000, 3670000, 8922715, 1750905] },
+      { id: 'hon2', label: 'Asesoría comercial (RevenueClick)', valores: [0, 0, 1375000, 0, 3208333] },
+      { id: 'hon3', label: 'Asesoría SST y RRHH', valores: [2600000, 2600000, 2600000, 2600000, 2860000] },
+      { id: 'hon4', label: 'Asesoría Spa', valores: [3905796, 5137564, 3679712, 4404740, 3040440] },
     ]
   },
   {
     id: 'impuestos', label: 'Impuestos', emoji: '🏛️',
     lineas: [
-      { id: 'imp1', label: 'Industria y comercio (ICA)', valor: 1386452 },
-      { id: 'imp2', label: 'Impuesto predial', valor: 1478703 },
-      { id: 'imp3', label: 'AIU', valor: 192404 },
-      { id: 'imp4', label: 'Otros impuestos asumidos', valor: 120000 },
+      { id: 'imp1', label: 'Industria y comercio (ICA)', valores: [2617245, 2438184, 2265016, 1626165, 1386452] },
+      { id: 'imp2', label: 'Impuesto predial', valores: [0, 0, 1478703, 1478703, 1478703] },
+      { id: 'imp3', label: 'Impuesto al consumo', valores: [0, 11704, 0, 0, 0] },
+      { id: 'imp4', label: 'AIU', valores: [43715, 0, 0, 320674, 192404] },
+      { id: 'imp5', label: 'Otros impuestos asumidos', valores: [0, 0, 660000, 18625, 120000] },
+      { id: 'imp6', label: 'Multas, sanciones y litigios', valores: [0, 1048000, 524000, 0, 0] },
     ]
   },
   {
     id: 'contrib_seguros', label: 'Contribuciones y seguros', emoji: '🛡️',
     lineas: [
-      { id: 'cs1', label: 'Contribuciones (Barrio Manila, Fontur)', valor: 624161 },
-      { id: 'cs2', label: 'Seguro todo riesgo', valor: 3526258 },
+      { id: 'cs1', label: 'Contribuciones (Barrio Manila, Fontur)', valores: [1063731, 999780, 937935, 838773, 624161] },
+      { id: 'cs2', label: 'Afiliaciones y sostenimiento', valores: [0, 0, 0, 6360600, 0] },
+      { id: 'cs3', label: 'Seguro todo riesgo', valores: [0, 3526258, 3526258, 3526258, 3526258] },
     ]
   },
   {
     id: 'servicios_publicos', label: 'Servicios públicos', emoji: '⚡',
     lineas: [
-      { id: 'sp1', label: 'Energía eléctrica', valor: 14696499 },
-      { id: 'sp2', label: 'Acueducto', valor: 3536146 },
-      { id: 'sp3', label: 'Gas', valor: 3830737 },
-      { id: 'sp4', label: 'Alumbrado público', valor: 637931 },
-      { id: 'sp5', label: 'Tasa de aseo', valor: 183867 },
-      { id: 'sp6', label: 'Internet', valor: 2921464 },
+      { id: 'sp1', label: 'Energía eléctrica', valores: [20463590, 19407938, 18368701, 16403534, 14696499] },
+      { id: 'sp2', label: 'Acueducto', valores: [4372889, 3797540, 3991379, 3941553, 3536146] },
+      { id: 'sp3', label: 'Gas', valores: [4473474, 3827011, 4838885, 4463630, 3830737] },
+      { id: 'sp4', label: 'Alumbrado público', valores: [603715, 604769, 635127, 635380, 637931] },
+      { id: 'sp5', label: 'Tasa de aseo', valores: [163783, 164412, 179897, 182219, 183867] },
+      { id: 'sp6', label: 'Internet', valores: [1270865, 1269102, 1270674, 2871617, 2921464] },
     ]
   },
   {
     id: 'servicios_operativos', label: 'Servicios operativos', emoji: '🧰',
     lineas: [
-      { id: 'so1', label: 'Aseo y vigilancia', valor: 181700 },
-      { id: 'so2', label: 'Temporales', valor: 2154042 },
-      { id: 'so3', label: 'Procesamiento de datos (software)', valor: 8008562 },
-      { id: 'so4', label: 'Transporte, fletes y acarreos', valor: 14000 },
+      { id: 'so1', label: 'Aseo y vigilancia', valores: [471116, 506038, 181700, 211700, 181700] },
+      { id: 'so2', label: 'Fumigación (servicios)', valores: [579100, 665965, 665965, 0, 0] },
+      { id: 'so3', label: 'Temporales', valores: [290000, 380000, 300000, 3206737, 2154042] },
+      { id: 'so4', label: 'Procesamiento de datos (software)', valores: [4439315, 6223382, 5107671, 4626783, 8008562] },
+      { id: 'so5', label: 'Licencia programa contable', valores: [0, 0, 1869900, 0, 0] },
+      { id: 'so6', label: 'Transporte, fletes y acarreos', valores: [25000, 44000, 263708, 24000, 14000] },
     ]
   },
   {
     id: 'mantenimiento', label: 'Mantenimiento y reparaciones', emoji: '🔧',
     lineas: [
-      { id: 'mn1', label: 'Mantenimiento piscinas', valor: 579723 },
-      { id: 'mn2', label: 'Mantenimiento ascensores', valor: 554484 },
-      { id: 'mn3', label: 'Mantenimiento aire acondicionado', valor: 345700 },
-      { id: 'mn4', label: 'Mantenimiento motobombas', valor: 2300000 },
-      { id: 'mn5', label: 'Construcciones y edificaciones', valor: 252017 },
-      { id: 'mn6', label: 'Gastos de ferretería', valor: 83431 },
-      { id: 'mn7', label: 'Arreglos ornamentales', valor: 240000 },
+      { id: 'mn1', label: 'Mantenimiento piscinas', valores: [6883258, 579723, 1719723, 579723, 579723] },
+      { id: 'mn2', label: 'Mantenimiento ascensores', valores: [554484, 554484, 554484, 554484, 554484] },
+      { id: 'mn3', label: 'Mantenimiento aire acondicionado', valores: [3787700, 1398000, 305000, 884800, 345700] },
+      { id: 'mn4', label: 'Mantenimiento motobombas', valores: [1614910, 514904, 0, 4825000, 2300000] },
+      { id: 'mn5', label: 'Mantenimiento cerraduras electrónicas', valores: [500000, 0, 140000, 920800, 0] },
+      { id: 'mn6', label: 'Construcciones y edificaciones', valores: [663066, 949622, 0, 579245, 252017] },
+      { id: 'mn7', label: 'Equipo de oficina', valores: [184874, 1046966, 378151, 375294, 0] },
+      { id: 'mn8', label: 'Equipo de computación y comunicación', valores: [160000, 403363, 0, 0, 0] },
+      { id: 'mn9', label: 'Gastos de ferretería', valores: [466471, 628992, 379283, 98571, 83431] },
+      { id: 'mn10', label: 'Arreglos ornamentales', valores: [2558897, 1675898, 2950001, 0, 240000] },
+      { id: 'mn11', label: 'Reparaciones locativas', valores: [0, 21008, 390245, 0, 0] },
+      { id: 'mn12', label: 'Mantenimiento y reparaciones (hotel)', valores: [0, 399160, 308540, 0, 0] },
     ]
   },
   {
     id: 'comisiones', label: 'Comisiones y financieros', emoji: '💳',
     lineas: [
-      { id: 'cm1', label: 'Comisiones OTAs (Booking, Expedia)', valor: 21146561 },
-      { id: 'cm2', label: 'Comisiones (Alianza Fiduciaria)', valor: 1750905 },
-      { id: 'cm3', label: 'Comisiones bancarias', valor: 5076246 },
-      { id: 'cm4', label: 'Impuesto 4x1.000', valor: 394954 },
-      { id: 'cm5', label: 'Impuesto 4x1.000 no deducible', valor: 394954 },
-      { id: 'cm6', label: 'Cuota de manejo bancaria', valor: 89080 },
-      { id: 'cm7', label: 'Intereses corrientes', valor: 205442 },
+      { id: 'cm1', label: 'Comisiones OTAs (Booking, Expedia)', valores: [31903902, 37879145, 32719906, 24407437, 21146561] },
+      { id: 'cm2', label: 'Comisiones (Alianza Fiduciaria)', valores: [1750905, 1750905, 1750905, 1750905, 1750905] },
+      { id: 'cm3', label: 'Comisiones bancarias', valores: [8291432, 7327178, 8943050, 6352332, 5076246] },
+      { id: 'cm4', label: 'Impuesto 4x1.000', valores: [697926, 3557, 767353, 767353, 394954] },
+      { id: 'cm5', label: 'Impuesto 4x1.000 no deducible', valores: [692711, 0, 767353, 499353, 394954] },
+      { id: 'cm6', label: 'Cuota de manejo bancaria', valores: [115072, 14900, 100343, 89080, 89080] },
+      { id: 'cm7', label: 'Intereses corrientes', valores: [0, 630921, 0, 655251, 0] },
+      { id: 'cm8', label: 'Descuentos comerciales condicionados', valores: [6982808, 654622, 1547168, 0, 0] },
     ]
   },
   {
     id: 'marketing', label: 'Marketing', emoji: '📣',
     lineas: [
-      { id: 'mk1', label: 'Marketing corporativo', valor: 16962484 },
-      { id: 'mk2', label: 'Relaciones e influenciadores', valor: 2984000 },
+      { id: 'mk1', label: 'Marketing corporativo', valores: [17031383, 16327008, 17341178, 17251757, 16962484] },
+      { id: 'mk2', label: 'Relaciones e influenciadores', valores: [2618000, 400000, 1968000, 834000, 2984000] },
     ]
   },
   {
     id: 'costos_hotel', label: 'Costos operativos del hotel', emoji: '🏨',
     lineas: [
-      { id: 'ch1', label: 'Lavandería y similares', valor: 8713017 },
-      { id: 'ch2', label: 'Desayuno invitados', valor: 7548776 },
-      { id: 'ch3', label: 'Lencería y decoración', valor: 2584181 },
-      { id: 'ch4', label: 'PMS (software operativo)', valor: 736428 },
-      { id: 'ch5', label: 'Fumigación', valor: 446408 },
-      { id: 'ch6', label: 'Musicalización (Brandtrack)', valor: 309510 },
-      { id: 'ch7', label: 'Lavado de alfombras y muebles', valor: 105000 },
-      { id: 'ch8', label: 'Amenities', valor: 29510 },
+      { id: 'ch1', label: 'Lavandería y similares', valores: [9339154, 9320139, 8158500, 3481200, 8713017] },
+      { id: 'ch2', label: 'Desayuno invitados', valores: [12617636, 10265060, 6043680, 4783494, 7548776] },
+      { id: 'ch3', label: 'Lencería y decoración', valores: [0, 1479779, 1551094, 1729779, 2584181] },
+      { id: 'ch4', label: 'PMS (software operativo)', valores: [976718, 713254, 0, 293297, 736428] },
+      { id: 'ch5', label: 'Fumigación (hotel)', valores: [0, 0, 0, 446408, 446408] },
+      { id: 'ch6', label: 'Musicalización (Brandtrack)', valores: [309510, 659510, 309510, 309510, 309510] },
+      { id: 'ch7', label: 'Lavado de alfombras y muebles', valores: [0, 0, 0, 0, 105000] },
+      { id: 'ch8', label: 'Amenities', valores: [1256051, 124448, 6115464, 260756, 29510] },
+      { id: 'ch9', label: 'Minibar', valores: [0, 3117075, 0, 367152, 0] },
+      { id: 'ch10', label: 'Muebles y enseres', valores: [0, 0, 0, 251933, 0] },
     ]
   },
   {
     id: 'insumos', label: 'Insumos y suministros', emoji: '🧴',
     lineas: [
-      { id: 'in1', label: 'Elementos de aseo y cafetería', valor: 2271757 },
-      { id: 'in2', label: 'Vajilla y cristalería', valor: 1957065 },
-      { id: 'in3', label: 'Útiles y papelería', valor: 314031 },
-      { id: 'in4', label: 'Representación y RRPP', valor: 236790 },
-      { id: 'in5', label: 'Atención al cliente', valor: 39800 },
-      { id: 'in6', label: 'Taxis y buses', valor: 57100 },
-      { id: 'in7', label: 'Trámites y licencias', valor: 12100 },
+      { id: 'in1', label: 'Elementos de aseo y cafetería', valores: [1692821, 741434, 2480762, 2049717, 2271757] },
+      { id: 'in2', label: 'Implementos de aseo', valores: [760000, 561740, 58580, 0, 0] },
+      { id: 'in3', label: 'Vajilla y cristalería', valores: [0, 0, 0, 0, 1957065] },
+      { id: 'in4', label: 'Útiles y papelería', valores: [447604, 1257295, 615349, 156806, 314031] },
+      { id: 'in5', label: 'Representación y RRPP', valores: [366450, 570227, 317060, 495670, 236790] },
+      { id: 'in6', label: 'Atención al cliente', valores: [604022, 285883, 490150, 129000, 39800] },
+      { id: 'in7', label: 'Alimentación personal', valores: [0, 0, 0, 132000, 0] },
+      { id: 'in8', label: 'Taxis y buses', valores: [377946, 228554, 84990, 406502, 57100] },
+      { id: 'in9', label: 'Gastos de viaje (alojamiento y pasajes)', valores: [0, 2044916, 475200, 0, 0] },
+      { id: 'in10', label: 'Trámites, registro y licencias', valores: [12100, 0, 0, 0, 12100] },
     ]
   },
 ]
 
-// Busca el mes anterior más reciente con gastos guardados (arrastre)
+// Construye la estructura de gastos de un mes semilla (ene–may)
+function construirSemillaMes(mes) {
+  const idx = MESES_SEMILLA.indexOf(mes)
+  if (idx === -1) return null
+  const categorias = GASTOS_BASE.map(cat => ({
+    id: cat.id,
+    label: cat.label,
+    emoji: cat.emoji,
+    lineas: cat.lineas.map(l => ({
+      id: l.id,
+      label: l.label,
+      valor: Number(l.valores[idx]) || 0
+    }))
+  }))
+  return categorias
+}
+
+// Busca el mes anterior más reciente con gastos guardados (arrastre, jun+)
 async function buscarGastosPrevios(mes) {
   let [y, m] = mes.split('-').map(Number)
   for (let i = 0; i < 12; i++) {
@@ -197,6 +235,9 @@ async function buscarGastosPrevios(mes) {
     const k = `${y}-${String(m).padStart(2, '0')}`
     const g = await kvGet(`gastos_${k}`)
     if (g && Array.isArray(g.categorias)) return g
+    // Si el mes anterior es semilla (ene–may) y no fue guardado, úsalo
+    const semilla = construirSemillaMes(k)
+    if (semilla) return { categorias: semilla }
   }
   return null
 }
@@ -483,15 +524,24 @@ export default async function handler(req, res) {
         kvGet(`recibos_${mes}`)
       ])
 
-      // Modelo de categorías + arrastre mensual
+      // Modelo de categorías:
+      // 1) Si hay guardado para el mes, manda eso.
+      // 2) Si el mes es semilla (ene–may), arma desde GASTOS_BASE.
+      // 3) Si no (jun+), arrastra el mes anterior.
       let gastos
       if (gastosGuardados && Array.isArray(gastosGuardados.categorias)) {
         gastos = gastosGuardados
       } else {
-        const prev = await buscarGastosPrevios(mes)
-        const baseCategorias = (prev && Array.isArray(prev.categorias))
-          ? JSON.parse(JSON.stringify(prev.categorias))
-          : JSON.parse(JSON.stringify(PLANTILLA_GASTOS))
+        const semilla = construirSemillaMes(mes)
+        let baseCategorias
+        if (semilla) {
+          baseCategorias = semilla
+        } else {
+          const prev = await buscarGastosPrevios(mes)
+          baseCategorias = (prev && Array.isArray(prev.categorias))
+            ? JSON.parse(JSON.stringify(prev.categorias))
+            : []
+        }
         const ingresosBase = (gastosGuardados && gastosGuardados.ingresos)
           ? gastosGuardados.ingresos
           : { habitaciones: 0, terraza: 0, spa: 0, upselling: 0, otrosIngresos: 0 }
