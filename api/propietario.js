@@ -58,6 +58,149 @@ const PROPIETARIOS = {
 const CATEGORIAS = ['F&B', 'Spa', 'Habitaciones', 'Mantenimiento', 'Legal', 'Servicios', 'Nómina', 'Marketing', 'Otros']
 const ESTADOS_VALIDOS = ['checked_in', 'checked_out', 'confirmed']
 
+// ============================================================
+// PLANTILLA DE GASTOS — semilla con valores reales de MAYO 2026
+// (extraídos del balance Siigo). Estructura: categorías madre
+// con líneas editables. Cada mes nuevo arranca copiando el mes
+// anterior guardado; si no hay, usa esta plantilla.
+// ============================================================
+const PLANTILLA_GASTOS = [
+  {
+    id: 'nomina', label: 'Nómina y personal', emoji: '👥',
+    lineas: [
+      { id: 'nom1', label: 'Sueldos', valor: 52496268 },
+      { id: 'nom2', label: 'Horas extras y recargos', valor: 7705515 },
+      { id: 'nom3', label: 'Auxilio de transporte', valor: 5239298 },
+      { id: 'nom4', label: 'Incapacidades', valor: 509100 },
+      { id: 'nom5', label: 'Bonificaciones', valor: 300000 },
+      { id: 'nom6', label: 'Cesantías', valor: 5844753 },
+      { id: 'nom7', label: 'Intereses sobre cesantías', valor: 701371 },
+      { id: 'nom8', label: 'Prima de servicios', valor: 5844753 },
+      { id: 'nom9', label: 'Vacaciones', valor: 6532238 },
+      { id: 'nom10', label: 'Aportes ARL', valor: 694906 },
+      { id: 'nom11', label: 'Aportes pensión', valor: 7192362 },
+      { id: 'nom12', label: 'Aportes caja de compensación', valor: 2613159 },
+      { id: 'nom13', label: 'Aportes EPS', valor: 2335 },
+      { id: 'nom14', label: 'Gastos médicos y drogas', valor: 641300 },
+      { id: 'nom15', label: 'Bienestar y atención a empleados', valor: 234800 },
+    ]
+  },
+  {
+    id: 'honorarios', label: 'Honorarios y asesorías', emoji: '📐',
+    lineas: [
+      { id: 'hon1', label: 'Asesoría jurídica', valor: 1750905 },
+      { id: 'hon2', label: 'Asesoría comercial (RevenueClick)', valor: 3208333 },
+      { id: 'hon3', label: 'Asesoría SST y RRHH', valor: 2860000 },
+      { id: 'hon4', label: 'Asesoría Spa', valor: 3040440 },
+    ]
+  },
+  {
+    id: 'impuestos', label: 'Impuestos', emoji: '🏛️',
+    lineas: [
+      { id: 'imp1', label: 'Industria y comercio (ICA)', valor: 1386452 },
+      { id: 'imp2', label: 'Impuesto predial', valor: 1478703 },
+      { id: 'imp3', label: 'AIU', valor: 192404 },
+      { id: 'imp4', label: 'Otros impuestos asumidos', valor: 120000 },
+    ]
+  },
+  {
+    id: 'contrib_seguros', label: 'Contribuciones y seguros', emoji: '🛡️',
+    lineas: [
+      { id: 'cs1', label: 'Contribuciones (Barrio Manila, Fontur)', valor: 624161 },
+      { id: 'cs2', label: 'Seguro todo riesgo', valor: 3526258 },
+    ]
+  },
+  {
+    id: 'servicios_publicos', label: 'Servicios públicos', emoji: '⚡',
+    lineas: [
+      { id: 'sp1', label: 'Energía eléctrica', valor: 14696499 },
+      { id: 'sp2', label: 'Acueducto', valor: 3536146 },
+      { id: 'sp3', label: 'Gas', valor: 3830737 },
+      { id: 'sp4', label: 'Alumbrado público', valor: 637931 },
+      { id: 'sp5', label: 'Tasa de aseo', valor: 183867 },
+      { id: 'sp6', label: 'Internet', valor: 2921464 },
+    ]
+  },
+  {
+    id: 'servicios_operativos', label: 'Servicios operativos', emoji: '🧰',
+    lineas: [
+      { id: 'so1', label: 'Aseo y vigilancia', valor: 181700 },
+      { id: 'so2', label: 'Temporales', valor: 2154042 },
+      { id: 'so3', label: 'Procesamiento de datos (software)', valor: 8008562 },
+      { id: 'so4', label: 'Transporte, fletes y acarreos', valor: 14000 },
+    ]
+  },
+  {
+    id: 'mantenimiento', label: 'Mantenimiento y reparaciones', emoji: '🔧',
+    lineas: [
+      { id: 'mn1', label: 'Mantenimiento piscinas', valor: 579723 },
+      { id: 'mn2', label: 'Mantenimiento ascensores', valor: 554484 },
+      { id: 'mn3', label: 'Mantenimiento aire acondicionado', valor: 345700 },
+      { id: 'mn4', label: 'Mantenimiento motobombas', valor: 2300000 },
+      { id: 'mn5', label: 'Construcciones y edificaciones', valor: 252017 },
+      { id: 'mn6', label: 'Gastos de ferretería', valor: 83431 },
+      { id: 'mn7', label: 'Arreglos ornamentales', valor: 240000 },
+    ]
+  },
+  {
+    id: 'comisiones', label: 'Comisiones y financieros', emoji: '💳',
+    lineas: [
+      { id: 'cm1', label: 'Comisiones OTAs (Booking, Expedia)', valor: 21146561 },
+      { id: 'cm2', label: 'Comisiones (Alianza Fiduciaria)', valor: 1750905 },
+      { id: 'cm3', label: 'Comisiones bancarias', valor: 5076246 },
+      { id: 'cm4', label: 'Impuesto 4x1.000', valor: 394954 },
+      { id: 'cm5', label: 'Impuesto 4x1.000 no deducible', valor: 394954 },
+      { id: 'cm6', label: 'Cuota de manejo bancaria', valor: 89080 },
+      { id: 'cm7', label: 'Intereses corrientes', valor: 205442 },
+    ]
+  },
+  {
+    id: 'marketing', label: 'Marketing', emoji: '📣',
+    lineas: [
+      { id: 'mk1', label: 'Marketing corporativo', valor: 16962484 },
+      { id: 'mk2', label: 'Relaciones e influenciadores', valor: 2984000 },
+    ]
+  },
+  {
+    id: 'costos_hotel', label: 'Costos operativos del hotel', emoji: '🏨',
+    lineas: [
+      { id: 'ch1', label: 'Lavandería y similares', valor: 8713017 },
+      { id: 'ch2', label: 'Desayuno invitados', valor: 7548776 },
+      { id: 'ch3', label: 'Lencería y decoración', valor: 2584181 },
+      { id: 'ch4', label: 'PMS (software operativo)', valor: 736428 },
+      { id: 'ch5', label: 'Fumigación', valor: 446408 },
+      { id: 'ch6', label: 'Musicalización (Brandtrack)', valor: 309510 },
+      { id: 'ch7', label: 'Lavado de alfombras y muebles', valor: 105000 },
+      { id: 'ch8', label: 'Amenities', valor: 29510 },
+    ]
+  },
+  {
+    id: 'insumos', label: 'Insumos y suministros', emoji: '🧴',
+    lineas: [
+      { id: 'in1', label: 'Elementos de aseo y cafetería', valor: 2271757 },
+      { id: 'in2', label: 'Vajilla y cristalería', valor: 1957065 },
+      { id: 'in3', label: 'Útiles y papelería', valor: 314031 },
+      { id: 'in4', label: 'Representación y RRPP', valor: 236790 },
+      { id: 'in5', label: 'Atención al cliente', valor: 39800 },
+      { id: 'in6', label: 'Taxis y buses', valor: 57100 },
+      { id: 'in7', label: 'Trámites y licencias', valor: 12100 },
+    ]
+  },
+]
+
+// Busca el mes anterior más reciente con gastos guardados (arrastre)
+async function buscarGastosPrevios(mes) {
+  let [y, m] = mes.split('-').map(Number)
+  for (let i = 0; i < 12; i++) {
+    m -= 1
+    if (m === 0) { m = 12; y -= 1 }
+    const k = `${y}-${String(m).padStart(2, '0')}`
+    const g = await kvGet(`gastos_${k}`)
+    if (g && Array.isArray(g.categorias)) return g
+  }
+  return null
+}
+
 async function getProveedores() {
   const cache = await kvGet('proveedores_cache')
   if (cache && cache.timestamp && (Date.now() - cache.timestamp < 600000)) {
@@ -340,14 +483,23 @@ export default async function handler(req, res) {
         kvGet(`recibos_${mes}`)
       ])
 
-      const gastos = gastosGuardados || {
-        fijos: { nomina: 0, arriendo: 0, serviciosPublicos: 0, internet: 0, seguros: 0, cloudbeds: 0, otrosFijos: 0 },
-        variables: { amenities: 0, lavanderia: 0, desayunos: 0, comisionBooking: 0, comisionExpedia: 0, comisionAirbnb: 0, mantenimiento: 0, otrosVariables: 0 },
-        ingresos: { habitaciones: cloudbeds.ingresosMes, terraza: 0, spa: 0, upselling: 0, otrosIngresos: 0 }
+      // Modelo de categorías + arrastre mensual
+      let gastos
+      if (gastosGuardados && Array.isArray(gastosGuardados.categorias)) {
+        gastos = gastosGuardados
+      } else {
+        const prev = await buscarGastosPrevios(mes)
+        const baseCategorias = (prev && Array.isArray(prev.categorias))
+          ? JSON.parse(JSON.stringify(prev.categorias))
+          : JSON.parse(JSON.stringify(PLANTILLA_GASTOS))
+        const ingresosBase = (gastosGuardados && gastosGuardados.ingresos)
+          ? gastosGuardados.ingresos
+          : { habitaciones: 0, terraza: 0, spa: 0, upselling: 0, otrosIngresos: 0 }
+        gastos = { ingresos: ingresosBase, categorias: baseCategorias }
       }
+      if (!gastos.ingresos) gastos.ingresos = { habitaciones: 0, terraza: 0, spa: 0, upselling: 0, otrosIngresos: 0 }
       gastos.ingresos.habitaciones = cloudbeds.ingresosMes
-      // Compatibilidad: si un mes guardado antes no tenía 'spa', lo inicializamos
-      if (gastos.ingresos.spa === undefined) gastos.ingresos.spa = 0
+      ;['terraza', 'spa', 'upselling', 'otrosIngresos'].forEach(f => { if (gastos.ingresos[f] === undefined) gastos.ingresos[f] = 0 })
 
       const recibosLista = recibos || []
       const gastosPorCategoria = {}
@@ -359,9 +511,12 @@ export default async function handler(req, res) {
         totalRecibos += imp
       })
 
-      const totalFijos = Object.values(gastos.fijos).reduce((a, b) => a + (Number(b) || 0), 0)
-      const totalVariables = Object.values(gastos.variables).reduce((a, b) => a + (Number(b) || 0), 0)
-      const totalGastos = totalFijos + totalVariables + totalRecibos
+      const categoriasResumen = (gastos.categorias || []).map(cat => {
+        const subtotal = (cat.lineas || []).reduce((a, l) => a + (Number(l.valor) || 0), 0)
+        return { id: cat.id, label: cat.label, emoji: cat.emoji, subtotal }
+      })
+      const totalCategorias = categoriasResumen.reduce((a, c) => a + c.subtotal, 0)
+      const totalGastos = totalCategorias + totalRecibos
       const totalIngresos = Object.values(gastos.ingresos).reduce((a, b) => a + (Number(b) || 0), 0)
 
       const GOP = totalIngresos - totalGastos
@@ -373,8 +528,9 @@ export default async function handler(req, res) {
       return res.status(200).json({
         mes, cloudbeds, gastos,
         recibos: recibosLista, gastosPorCategoria, totalRecibos, categorias: CATEGORIAS,
+        categoriasResumen,
         resumen: {
-          totalIngresos, totalFijos, totalVariables, totalRecibos, totalGastos,
+          totalIngresos, totalCategorias, totalRecibos, totalGastos,
           GOP, feeSolaraFijo, feeSolaraVariable, feeSolaraTotal, utilidadNeta,
           ocupacion: cloudbeds.ocupacion, adr: cloudbeds.adr, revpar: cloudbeds.revpar,
           noches: cloudbeds.noches, totalReservas: cloudbeds.totalReservas, canales: cloudbeds.canales,
