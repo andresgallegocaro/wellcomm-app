@@ -26,6 +26,13 @@ async function kvSet(key, value) {
   })
 }
 
+async function kvDel(key) {
+  await fetch(`${KV_URL}/del/${encodeURIComponent(key)}`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${KV_TOKEN}` }
+  })
+}
+
 async function getFreshToken() {
   const params = new URLSearchParams({
     grant_type: 'refresh_token',
@@ -60,34 +67,34 @@ const ESTADOS_VALIDOS = ['checked_in', 'checked_out', 'confirmed']
 
 // ============================================================
 // SEMILLAS DE GASTOS POR MES — valores reales del balance Siigo
-// Estructura por mes: categorías madre + líneas. Orden de meses
-// en el array de cada línea: [ENERO, FEBRERO, MARZO, ABRIL, MAYO]
-// El GET arma la estructura del mes pedido (ene–may) desde aquí.
-// Desde junio en adelante: arrastre del mes anterior guardado.
+// valores = [ENERO, FEBRERO, MARZO, ABRIL, MAYO] en COP (positivos = gasto)
+// Cada concepto suma sus cuentas Siigo (operativa 51 + admin 52 + costo 72).
+// Validado: la suma de MAYO reproduce exactamente el cierre (229.626.216).
+// Ene–May: se arma desde aquí. Jun+: arrastre del mes anterior.
 // ============================================================
 const MESES_SEMILLA = ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05']
 
-// Cada línea: valores = [ene, feb, mar, abr, may] (en COP, positivos)
 const GASTOS_BASE = [
   {
     id: 'nomina', label: 'Nómina y personal', emoji: '👥',
     lineas: [
-      { id: 'nom1', label: 'Sueldos', valores: [68278637, 65553008, 72083096, 65467049, 52496268] },
+      { id: 'nom1', label: 'Sueldos', valores: [78393687, 72785703, 84402533, 72691441, 52496268] },
       { id: 'nom2', label: 'Horas extras y recargos', valores: [9169666, 6775121, 6907119, 9352489, 7705515] },
       { id: 'nom3', label: 'Auxilio de transporte', valores: [5928461, 5729185, 6202466, 5779004, 5239298] },
       { id: 'nom4', label: 'Incapacidades', valores: [133333, 822434, 561580, 231427, 509100] },
-      { id: 'nom5', label: 'Bonificaciones', valores: [100000, 1851800, 3067050, 10579892, 300000] },
-      { id: 'nom6', label: 'Cesantías', valores: [7976075, 7198794, 7856753, 9895757, 5844753] },
-      { id: 'nom7', label: 'Intereses sobre cesantías', valores: [5965603, 863855, 942810, 982695, 701371] },
-      { id: 'nom8', label: 'Prima de servicios', valores: [7975775, 7198793, 7856753, 9895757, 5844753] },
-      { id: 'nom9', label: 'Vacaciones', valores: [6537975, 7239441, 3999174, 7036683, 6532238] },
-      { id: 'nom10', label: 'Aportes ARL', valores: [1112888, 981822, 1000288, 1003978, 694906] },
-      { id: 'nom11', label: 'Aportes pensión', valores: [10748444, 10232159, 11043737, 10189754, 7192362] },
-      { id: 'nom12', label: 'Aportes caja de compensación', valores: [3578941, 3419956, 3666363, 3522941, 2613159] },
-      { id: 'nom13', label: 'Aportes EPS', valores: [17509, 60095, 49323, 7278, 2335] },
-      { id: 'nom14', label: 'Gastos médicos y drogas', valores: [645700, 807702, 893700, 814300, 641300] },
-      { id: 'nom15', label: 'Bienestar y atención a empleados', valores: [840000, 10487, 1253672, 357200, 234800] },
-      { id: 'nom16', label: 'Dotación y suministro a trabajadores', valores: [1447000, 234160, 108000, 793000, 0] },
+      { id: 'nom5', label: 'Cesantías', valores: [7976075, 7198794, 7856753, 9895758, 5844753] },
+      { id: 'nom6', label: 'Intereses sobre cesantías', valores: [5965604, 863855, 942810, 982695, 701371] },
+      { id: 'nom7', label: 'Prima de servicios', valores: [7976075, 7198794, 7856753, 9895758, 5844753] },
+      { id: 'nom8', label: 'Vacaciones', valores: [6537975, 7239440, 3999174, 7036683, 6532238] },
+      { id: 'nom9', label: 'Bonificaciones', valores: [100000, 1851800, 3067050, 10579892, 300000] },
+      { id: 'nom10', label: 'Dotación y suministro', valores: [1447000, 234160, 108000, 793000, 0] },
+      { id: 'nom11', label: 'Aportes ARL', valores: [1113289, 982022, 1001248, 874179, 694906] },
+      { id: 'nom12', label: 'Aportes EPS', valores: [17509, 60095, 40568, 7278, 2335] },
+      { id: 'nom13', label: 'Aportes pensión', valores: [10748444, 10232159, 11044136, 10189755, 7192362] },
+      { id: 'nom14', label: 'Aportes caja de compensación', valores: [3578941, 3419956, 3666577, 3522958, 2613159] },
+      { id: 'nom15', label: 'Gastos médicos y drogas', valores: [645700, 807702, 893700, 814300, 641300] },
+      { id: 'nom16', label: 'Bienestar y atención a empleados', valores: [840000, 10487, 1253672, 357200, 234800] },
+      { id: 'nom17', label: 'Indemnizaciones laborales', valores: [0, 3677778, 2560093, 2054815, 0] },
     ]
   },
   {
@@ -108,6 +115,7 @@ const GASTOS_BASE = [
       { id: 'imp4', label: 'AIU', valores: [43715, 0, 0, 320674, 192404] },
       { id: 'imp5', label: 'Otros impuestos asumidos', valores: [0, 0, 660000, 18625, 120000] },
       { id: 'imp6', label: 'Multas, sanciones y litigios', valores: [0, 1048000, 524000, 0, 0] },
+      { id: 'imp7', label: 'Gastos no deducibles', valores: [0, 0, 4008586, 0, 0] },
     ]
   },
   {
@@ -133,8 +141,8 @@ const GASTOS_BASE = [
     id: 'servicios_operativos', label: 'Servicios operativos', emoji: '🧰',
     lineas: [
       { id: 'so1', label: 'Aseo y vigilancia', valores: [471116, 506038, 181700, 211700, 181700] },
-      { id: 'so2', label: 'Fumigación (servicios)', valores: [579100, 665965, 665965, 0, 0] },
-      { id: 'so3', label: 'Temporales', valores: [290000, 380000, 300000, 3206737, 2154042] },
+      { id: 'so2', label: 'Fumigación', valores: [579100, 665965, 665965, 0, 0] },
+      { id: 'so3', label: 'Temporales', valores: [967150, 380000, 300000, 3206737, 2154042] },
       { id: 'so4', label: 'Procesamiento de datos (software)', valores: [4439315, 6223382, 5107671, 4626783, 8008562] },
       { id: 'so5', label: 'Licencia programa contable', valores: [0, 0, 1869900, 0, 0] },
       { id: 'so6', label: 'Transporte, fletes y acarreos', valores: [25000, 44000, 263708, 24000, 14000] },
@@ -147,10 +155,10 @@ const GASTOS_BASE = [
       { id: 'mn2', label: 'Mantenimiento ascensores', valores: [554484, 554484, 554484, 554484, 554484] },
       { id: 'mn3', label: 'Mantenimiento aire acondicionado', valores: [3787700, 1398000, 305000, 884800, 345700] },
       { id: 'mn4', label: 'Mantenimiento motobombas', valores: [1614910, 514904, 0, 4825000, 2300000] },
-      { id: 'mn5', label: 'Mantenimiento cerraduras electrónicas', valores: [500000, 0, 140000, 920800, 0] },
+      { id: 'mn5', label: 'Cerraduras electrónicas', valores: [500000, 0, 140000, 920800, 0] },
       { id: 'mn6', label: 'Construcciones y edificaciones', valores: [663066, 949622, 0, 579245, 252017] },
       { id: 'mn7', label: 'Equipo de oficina', valores: [184874, 1046966, 378151, 375294, 0] },
-      { id: 'mn8', label: 'Equipo de computación y comunicación', valores: [160000, 403363, 0, 0, 0] },
+      { id: 'mn8', label: 'Equipo de cómputo y comunicación', valores: [160000, 403363, 0, 0, 0] },
       { id: 'mn9', label: 'Gastos de ferretería', valores: [466471, 628992, 379283, 98571, 83431] },
       { id: 'mn10', label: 'Arreglos ornamentales', valores: [2558897, 1675898, 2950001, 0, 240000] },
       { id: 'mn11', label: 'Reparaciones locativas', valores: [0, 21008, 390245, 0, 0] },
@@ -166,7 +174,7 @@ const GASTOS_BASE = [
       { id: 'cm4', label: 'Impuesto 4x1.000', valores: [697926, 3557, 767353, 767353, 394954] },
       { id: 'cm5', label: 'Impuesto 4x1.000 no deducible', valores: [692711, 0, 767353, 499353, 394954] },
       { id: 'cm6', label: 'Cuota de manejo bancaria', valores: [115072, 14900, 100343, 89080, 89080] },
-      { id: 'cm7', label: 'Intereses corrientes', valores: [0, 630921, 0, 655251, 0] },
+      { id: 'cm7', label: 'Intereses corrientes y financieros', valores: [89375, 827768, 714659, 377014, 205442] },
       { id: 'cm8', label: 'Descuentos comerciales condicionados', valores: [6982808, 654622, 1547168, 0, 0] },
     ]
   },
@@ -180,31 +188,34 @@ const GASTOS_BASE = [
   {
     id: 'costos_hotel', label: 'Costos operativos del hotel', emoji: '🏨',
     lineas: [
-      { id: 'ch1', label: 'Lavandería y similares', valores: [9339154, 9320139, 8158500, 3481200, 8713017] },
-      { id: 'ch2', label: 'Desayuno invitados', valores: [12617636, 10265060, 6043680, 4783494, 7548776] },
-      { id: 'ch3', label: 'Lencería y decoración', valores: [0, 1479779, 1551094, 1729779, 2584181] },
+      { id: 'ch1', label: 'Desayuno invitados', valores: [12617636, 10265060, 6043680, 4783494, 7548776] },
+      { id: 'ch2', label: 'Lavandería y similares', valores: [9339154, 9320139, 8158500, 3481200, 8713017] },
+      { id: 'ch3', label: 'Experiencias hotel', valores: [150442, 108122, 332855, 52874, 0] },
       { id: 'ch4', label: 'PMS (software operativo)', valores: [976718, 713254, 0, 293297, 736428] },
-      { id: 'ch5', label: 'Fumigación (hotel)', valores: [0, 0, 0, 446408, 446408] },
-      { id: 'ch6', label: 'Musicalización (Brandtrack)', valores: [309510, 659510, 309510, 309510, 309510] },
+      { id: 'ch5', label: 'Musicalización (Brandtrack)', valores: [309510, 659510, 309510, 309510, 309510] },
+      { id: 'ch6', label: 'Fumigación (hotel)', valores: [0, 0, 0, 446408, 446408] },
       { id: 'ch7', label: 'Lavado de alfombras y muebles', valores: [0, 0, 0, 0, 105000] },
-      { id: 'ch8', label: 'Amenities', valores: [1256051, 124448, 6115464, 260756, 29510] },
-      { id: 'ch9', label: 'Minibar', valores: [0, 3117075, 0, 367152, 0] },
-      { id: 'ch10', label: 'Muebles y enseres', valores: [0, 0, 0, 251933, 0] },
     ]
   },
   {
     id: 'insumos', label: 'Insumos y suministros', emoji: '🧴',
     lineas: [
       { id: 'in1', label: 'Elementos de aseo y cafetería', valores: [1692821, 741434, 2480762, 2049717, 2271757] },
-      { id: 'in2', label: 'Implementos de aseo', valores: [760000, 561740, 58580, 0, 0] },
-      { id: 'in3', label: 'Vajilla y cristalería', valores: [0, 0, 0, 0, 1957065] },
-      { id: 'in4', label: 'Útiles y papelería', valores: [447604, 1257295, 615349, 156806, 314031] },
-      { id: 'in5', label: 'Representación y RRPP', valores: [366450, 570227, 317060, 495670, 236790] },
-      { id: 'in6', label: 'Atención al cliente', valores: [604022, 285883, 490150, 129000, 39800] },
-      { id: 'in7', label: 'Alimentación personal', valores: [0, 0, 0, 132000, 0] },
-      { id: 'in8', label: 'Taxis y buses', valores: [377946, 228554, 84990, 406502, 57100] },
-      { id: 'in9', label: 'Gastos de viaje (alojamiento y pasajes)', valores: [0, 2044916, 475200, 0, 0] },
-      { id: 'in10', label: 'Trámites, registro y licencias', valores: [12100, 0, 0, 0, 12100] },
+      { id: 'in2', label: 'Lencería y decoración', valores: [0, 1479779, 1551094, 1729779, 2584181] },
+      { id: 'in3', label: 'Amenities', valores: [1256051, 124448, 6115464, 260756, 29510] },
+      { id: 'in4', label: 'Minibar', valores: [0, 3117075, 0, 367152, 0] },
+      { id: 'in5', label: 'Vajilla y cristalería', valores: [0, 0, 0, 0, 1957065] },
+      { id: 'in6', label: 'Implementos de aseo', valores: [760000, 561740, 58580, 0, 0] },
+      { id: 'in7', label: 'Útiles y papelería', valores: [1149304, 1257295, 894649, 628706, 314031] },
+      { id: 'in8', label: 'Representación y RRPP', valores: [366450, 570227, 317060, 495670, 236790] },
+      { id: 'in9', label: 'Atención al cliente', valores: [604022, 285883, 490150, 129000, 39800] },
+      { id: 'in10', label: 'Taxis y buses', valores: [377946, 228554, 84990, 406502, 57100] },
+      { id: 'in11', label: 'Gastos de viaje (alojamiento y pasajes)', valores: [0, 2044916, 475200, 0, 0] },
+      { id: 'in12', label: 'Alimentación personal', valores: [0, 0, 0, 132000, 0] },
+      { id: 'in13', label: 'Muebles y enseres', valores: [0, 0, 0, 251933, 0] },
+      { id: 'in14', label: 'Elementos de cafetería', valores: [29159, 6000, 0, 0, 0] },
+      { id: 'in15', label: 'Trámites, registro y licencias', valores: [12100, 0, 0, 0, 12100] },
+      { id: 'in16', label: 'TV por suscripción', valores: [0, 0, 99800, 0, 0] },
     ]
   },
 ]
@@ -213,7 +224,7 @@ const GASTOS_BASE = [
 function construirSemillaMes(mes) {
   const idx = MESES_SEMILLA.indexOf(mes)
   if (idx === -1) return null
-  const categorias = GASTOS_BASE.map(cat => ({
+  return GASTOS_BASE.map(cat => ({
     id: cat.id,
     label: cat.label,
     emoji: cat.emoji,
@@ -223,23 +234,24 @@ function construirSemillaMes(mes) {
       valor: Number(l.valores[idx]) || 0
     }))
   }))
-  return categorias
 }
 
-// Busca el mes anterior más reciente con gastos guardados (arrastre, jun+)
-async function buscarGastosPrevios(mes) {
-  let [y, m] = mes.split('-').map(Number)
-  for (let i = 0; i < 12; i++) {
-    m -= 1
-    if (m === 0) { m = 12; y -= 1 }
-    const k = `${y}-${String(m).padStart(2, '0')}`
-    const g = await kvGet(`gastos_${k}`)
-    if (g && Array.isArray(g.categorias)) return g
-    // Si el mes anterior es semilla (ene–may) y no fue guardado, úsalo
-    const semilla = construirSemillaMes(k)
-    if (semilla) return { categorias: semilla }
+// Resuelve las categorías de un mes con prioridad:
+// 1) si el mes fue EDITADO manualmente y guardado -> usa lo guardado
+// 2) si es mes semilla (ene–may) -> usa la semilla del balance
+// 3) si no (jun+) -> arrastra el mes anterior (recursivo)
+async function resolverCategorias(mes, visited = 0) {
+  if (visited > 14) return []
+  const saved = await kvGet(`gastos_${mes}`)
+  if (saved && saved.editadoManual && Array.isArray(saved.categorias)) {
+    return JSON.parse(JSON.stringify(saved.categorias))
   }
-  return null
+  const semilla = construirSemillaMes(mes)
+  if (semilla) return semilla
+  let [y, m] = mes.split('-').map(Number)
+  m -= 1; if (m === 0) { m = 12; y -= 1 }
+  const prev = `${y}-${String(m).padStart(2, '0')}`
+  return await resolverCategorias(prev, visited + 1)
 }
 
 async function getProveedores() {
@@ -509,45 +521,35 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, recibos: filtrados })
     }
 
+    // Guardar gastos: marca editadoManual para que prevalezca sobre la semilla
     if (req.method === 'POST' && body.action === 'guardar_gastos') {
       const { mes, gastos } = body
-      await kvSet(`gastos_${mes}`, gastos)
+      const g = { ...gastos, editadoManual: true }
+      await kvSet(`gastos_${mes}`, g)
+      return res.status(200).json({ ok: true })
+    }
+
+    // Restablecer un mes: borra lo guardado y vuelve a la semilla / arrastre
+    if (req.method === 'POST' && body.action === 'reset_gastos') {
+      const { mes } = body
+      await kvDel(`gastos_${mes}`)
       return res.status(200).json({ ok: true })
     }
 
     if (req.method === 'GET') {
       const mes = req.query.mes || new Date().toISOString().slice(0, 7)
 
-      const [cloudbeds, gastosGuardados, recibos] = await Promise.all([
+      const [cloudbeds, gastosGuardados, recibos, categoriasResueltas] = await Promise.all([
         getCloudbedsData(mes),
         kvGet(`gastos_${mes}`),
-        kvGet(`recibos_${mes}`)
+        kvGet(`recibos_${mes}`),
+        resolverCategorias(mes)
       ])
 
-      // Modelo de categorías:
-      // 1) Si hay guardado para el mes, manda eso.
-      // 2) Si el mes es semilla (ene–may), arma desde GASTOS_BASE.
-      // 3) Si no (jun+), arrastra el mes anterior.
-      let gastos
-      if (gastosGuardados && Array.isArray(gastosGuardados.categorias)) {
-        gastos = gastosGuardados
-      } else {
-        const semilla = construirSemillaMes(mes)
-        let baseCategorias
-        if (semilla) {
-          baseCategorias = semilla
-        } else {
-          const prev = await buscarGastosPrevios(mes)
-          baseCategorias = (prev && Array.isArray(prev.categorias))
-            ? JSON.parse(JSON.stringify(prev.categorias))
-            : []
-        }
-        const ingresosBase = (gastosGuardados && gastosGuardados.ingresos)
-          ? gastosGuardados.ingresos
-          : { habitaciones: 0, terraza: 0, spa: 0, upselling: 0, otrosIngresos: 0 }
-        gastos = { ingresos: ingresosBase, categorias: baseCategorias }
-      }
-      if (!gastos.ingresos) gastos.ingresos = { habitaciones: 0, terraza: 0, spa: 0, upselling: 0, otrosIngresos: 0 }
+      const ingresosBase = (gastosGuardados && gastosGuardados.ingresos)
+        ? gastosGuardados.ingresos
+        : { habitaciones: 0, terraza: 0, spa: 0, upselling: 0, otrosIngresos: 0 }
+      const gastos = { ingresos: ingresosBase, categorias: categoriasResueltas }
       gastos.ingresos.habitaciones = cloudbeds.ingresosMes
       ;['terraza', 'spa', 'upselling', 'otrosIngresos'].forEach(f => { if (gastos.ingresos[f] === undefined) gastos.ingresos[f] = 0 })
 
