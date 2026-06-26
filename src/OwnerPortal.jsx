@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { exportarPDFInforme, exportarExcelInforme } from './exportInforme.js'
 
 const C = {
   bg: '#E8F0EC', dark: '#1A1A1A', primary: '#7EC8A0', primaryDark: '#5aaa80',
@@ -571,6 +572,13 @@ export default function OwnerPortal({ onBack, onRevenue }) {
                 <div style={{ fontSize: '0.78rem', color: C.muted, marginBottom: '1rem' }}>
                   {mes} · estructura del board {cierre ? '· cierre real vs presupuesto' : '· presupuesto (mes sin cierre)'}
                 </div>
+
+                {p && (
+                  <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+                    <button onClick={() => exportarPDFInforme(data, mes)} style={{ flex: 1, background: C.dark, color: '#fff', border: 'none', borderRadius: 9, padding: '0.65rem', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-body)' }}>⬇ PDF para inversionistas</button>
+                    <button onClick={() => exportarExcelInforme(data, mes)} style={{ flex: 1, background: C.white, color: C.dark, border: `1px solid ${C.light}`, borderRadius: 9, padding: '0.65rem', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-body)' }}>⬇ Excel</button>
+                  </div>
+                )}
 
                 {!p && <div style={{ color: C.muted }}>Sin datos de P&L para este mes.</div>}
 
