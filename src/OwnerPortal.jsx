@@ -1,32 +1,38 @@
 import { useState, useEffect } from 'react'
-import { exportarExcelInforme, exportarPDFInforme } from './exportInforme'
 
 const C = {
   bg: '#E8F0EC', dark: '#1A1A1A', primary: '#7EC8A0', primaryDark: '#5aaa80',
-  text: '#1A1A1A', muted: '#7a8c82', light: '#d0ddd5', white: '#FFFFFF', gold: '#7EC8A0',
+  text: '#1A1A1A', muted: '#7a8c82', light: '#d0ddd5', white: '#FFFFFF',
+  coral: '#E0654F', gold: '#C5A45E',
 }
 
 function fmt(n) {
   if (!n) return '$0'
-  if (n >= 1000000) return `$${(n / 1000000).toFixed(1)}M`
-  if (n >= 1000) return `$${Math.round(n / 1000)}K`
+  const a = Math.abs(n)
+  if (a >= 1000000) return `${n < 0 ? '-' : ''}$${(a / 1000000).toFixed(1)}M`
+  if (a >= 1000) return `${n < 0 ? '-' : ''}$${Math.round(a / 1000)}K`
   return `$${n}`
 }
-function fmtCOP(n) { return `COP ${Number(n || 0).toLocaleString('es-CO')}` }
-
-const SECCIONES = [
-  { id: 'resumen', icon: '📊', label: 'Resumen' },
-  { id: 'ingresos', icon: '💰', label: 'Ingresos' },
-  { id: 'recibos', icon: '🧾', label: 'Recibos' },
-  { id: 'gastos', icon: '📋', label: 'Gastos' },
-  { id: 'liquidacion', icon: '💸', label: 'Liquidación' },
-]
+function fmtCOP(n) {
+  const x = Number(n || 0)
+  return `${x < 0 ? '- ' : ''}COP ${Math.abs(x).toLocaleString('es-CO')}`
+}
+function pct(real, ppto) {
+  if (!ppto) return null
+  return Math.round((real / ppto) * 100)
+}
 
 const COLOR_CAT = {
   'F&B': '#e67e22', 'Spa': '#9b59b6', 'Habitaciones': '#3498db',
   'Mantenimiento': '#e74c3c', 'Legal': '#34495e', 'Servicios': '#16a085',
   'Nómina': '#f39c12', 'Marketing': '#e91e63', 'Otros': '#95a5a6'
 }
+
+const SECCIONES = [
+  { id: 'resumen', icon: '📊', label: 'Resumen' },
+  { id: 'liquidacion', icon: '💸', label: 'Liquidación' },
+  { id: 'recibos', icon: '🧾', label: 'Recibos' },
+]
 
 function RecibosSection({ data, mes, onReload }) {
   const [leyendo, setLeyendo] = useState(false)
@@ -329,153 +335,6 @@ function RecibosSection({ data, mes, onReload }) {
   )
 }
 
-function GastosEditor({ gastos, mes, onChange, onSaved }) {
-  const [expanded, setExpanded] = useState({})
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-
-  const cats = gastos.categorias || []
-  const ing = gastos.ingresos || {}
-
-  function setCats(newCats) { onChange({ ...gastos, categorias: newCats }) }
-  function setIngreso(field, val) { onChange({ ...gastos, ingresos: { ...ing, [field]: val } }) }
-  function toggle(id) { setExpanded(p => ({ ...p, [id]: !p[id] })) }
-
-  function updLineaValor(ci, li, val) {
-    setCats(cats.map((c, i) => i !== ci ? c : { ...c, lineas: c.lineas.map((l, j) => j !== li ? l : { ...l, valor: val }) }))
-  }
-  function updLineaLabel(ci, li, val) {
-    setCats(cats.map((c, i) => i !== ci ? c : { ...c, lineas: c.lineas.map((l, j) => j !== li ? l : { ...l, label: val }) }))
-  }
-  function addLinea(ci) {
-    setCats(cats.map((c, i) => i !== ci ? c : { ...c, lineas: [...(c.lineas || []), { id: `l${Date.now()}`, label: 'Nueva línea', valor: 0 }] }))
-  }
-  function delLinea(ci, li) {
-    setCats(cats.map((c, i) => i !== ci ? c : { ...c, lineas: c.lineas.filter((_, j) => j !== li) }))
-  }
-  function updCatLabel(ci, val) {
-    setCats(cats.map((c, i) => i !== ci ? c : { ...c, label: val }))
-  }
-  function delCat(ci) { setCats(cats.filter((_, i) => i !== ci)) }
-  function addCat() { setCats([...cats, { id: `c${Date.now()}`, label: 'Nueva categoría', emoji: '📁', lineas: [] }]) }
-
-  const catTotal = c => (c.lineas || []).reduce((a, l) => a + (Number(l.valor) || 0), 0)
-  const totalGeneral = cats.reduce((a, c) => a + catTotal(c), 0)
-
-  async function guardar() {
-    setSaving(true)
-    try {
-      await fetch('/api/propietario', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'guardar_gastos', mes, gastos })
-      })
-      setSaved(true); setTimeout(() => setSaved(false), 2000)
-      if (onSaved) await onSaved()
-    } finally { setSaving(false) }
-  }
-
-  async function restablecer() {
-    if (!confirm(`¿Restablecer ${mes} a sus valores originales del balance? Se borrarán las ediciones manuales de este mes.`)) return
-    setSaving(true)
-    try {
-      await fetch('/api/propietario', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'reset_gastos', mes })
-      })
-      if (onSaved) await onSaved()
-    } finally { setSaving(false) }
-  }
-
-  const inputStyle = { width: '100%', padding: '0.55rem 0.65rem', border: `1px solid ${C.light}`, borderRadius: 8, fontSize: '0.85rem', fontFamily: 'var(--font-body)', outline: 'none', boxSizing: 'border-box' }
-
-  return (
-    <div>
-      {/* Ingresos */}
-      <div style={{ background: C.white, borderRadius: 12, padding: '1.25rem', marginBottom: '1rem', border: `1px solid ${C.light}` }}>
-        <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', marginBottom: '1rem', borderBottom: `1px solid ${C.light}`, paddingBottom: '0.5rem' }}>💰 Ingresos del mes</div>
-        {[
-          { label: 'Habitaciones (automático Cloudbeds)', field: 'habitaciones', ro: true },
-          { label: 'Terraza / F&B (manual)', field: 'terraza' },
-          { label: 'SPA (manual)', field: 'spa' },
-          { label: 'Upselling y servicios extra', field: 'upselling' },
-          { label: 'Otros ingresos', field: 'otrosIngresos' },
-        ].map(it => (
-          <div key={it.field} style={{ marginBottom: '0.75rem' }}>
-            <label style={{ fontSize: '0.7rem', color: C.muted, display: 'block', marginBottom: '0.25rem' }}>{it.label}</label>
-            <div style={{ display: 'flex', alignItems: 'center', border: `1px solid ${C.light}`, borderRadius: 8, background: it.ro ? '#f3f3f3' : C.white, overflow: 'hidden' }}>
-              <span style={{ padding: '0.6rem 0.5rem', fontSize: '0.78rem', color: C.muted, borderRight: `1px solid ${C.light}` }}>COP</span>
-              <input type="number" value={ing[it.field] || ''} readOnly={it.ro} disabled={it.ro}
-                onChange={e => setIngreso(it.field, Number(e.target.value))}
-                placeholder="0" style={{ flex: 1, padding: '0.6rem 0.75rem', border: 'none', outline: 'none', fontSize: '0.88rem', fontFamily: 'var(--font-body)', background: 'transparent', color: it.ro ? C.muted : C.text }} />
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Gastos expandibles */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-        <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem' }}>📋 Gastos del mes</div>
-        <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#e67e22' }}>{fmtCOP(totalGeneral)}</div>
-      </div>
-
-      {cats.map((cat, ci) => {
-        const isOpen = expanded[cat.id]
-        const subtotal = catTotal(cat)
-        return (
-          <div key={cat.id} style={{ background: C.white, borderRadius: 12, marginBottom: '0.6rem', border: `1px solid ${C.light}`, overflow: 'hidden' }}>
-            <div onClick={() => toggle(cat.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.85rem 1rem', cursor: 'pointer', background: isOpen ? '#fafafa' : C.white }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ fontSize: '0.7rem', color: C.muted, display: 'inline-block', transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>▶</span>
-                <span style={{ fontSize: '1rem' }}>{cat.emoji}</span>
-                <span style={{ fontSize: '0.85rem', fontWeight: 500 }}>{cat.label}</span>
-                <span style={{ fontSize: '0.62rem', color: C.muted }}>({(cat.lineas || []).length})</span>
-              </div>
-              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#e67e22' }}>{fmtCOP(subtotal)}</span>
-            </div>
-
-            {isOpen && (
-              <div style={{ padding: '0.5rem 1rem 1rem', borderTop: `1px solid ${C.light}` }}>
-                <div style={{ marginBottom: '0.6rem' }}>
-                  <label style={{ fontSize: '0.6rem', color: C.muted, display: 'block', marginBottom: '0.2rem' }}>Nombre de la categoría</label>
-                  <input value={cat.label} onChange={e => updCatLabel(ci, e.target.value)} style={inputStyle} />
-                </div>
-                {(cat.lineas || []).map((l, li) => (
-                  <div key={l.id} style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', marginBottom: '0.45rem' }}>
-                    <input value={l.label} onChange={e => updLineaLabel(ci, li, e.target.value)} placeholder="Concepto"
-                      style={{ ...inputStyle, flex: 1.4 }} />
-                    <div style={{ display: 'flex', alignItems: 'center', border: `1px solid ${C.light}`, borderRadius: 8, overflow: 'hidden', flex: 1 }}>
-                      <span style={{ padding: '0.55rem 0.4rem', fontSize: '0.66rem', color: C.muted, borderRight: `1px solid ${C.light}` }}>COP</span>
-                      <input type="number" value={l.valor || ''} onChange={e => updLineaValor(ci, li, Number(e.target.value))} placeholder="0"
-                        style={{ width: '100%', padding: '0.55rem 0.5rem', border: 'none', outline: 'none', fontSize: '0.82rem', fontFamily: 'var(--font-body)' }} />
-                    </div>
-                    <button onClick={() => delLinea(ci, li)} style={{ background: 'none', border: 'none', color: '#e74c3c', fontSize: '1rem', cursor: 'pointer', padding: '0 0.2rem' }}>×</button>
-                  </div>
-                ))}
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.6rem' }}>
-                  <button onClick={() => addLinea(ci)} style={{ background: C.bg, border: `1px solid ${C.light}`, color: C.primaryDark, borderRadius: 8, padding: '0.4rem 0.7rem', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 600 }}>+ Agregar línea</button>
-                  <button onClick={() => delCat(ci)} style={{ background: 'none', border: 'none', color: C.muted, fontSize: '0.68rem', cursor: 'pointer' }}>Eliminar categoría</button>
-                </div>
-              </div>
-            )}
-          </div>
-        )
-      })}
-
-      <button onClick={addCat} style={{ width: '100%', background: C.white, border: `1px dashed ${C.light}`, color: C.muted, borderRadius: 10, padding: '0.7rem', fontSize: '0.78rem', cursor: 'pointer', marginBottom: '1rem', marginTop: '0.25rem' }}>+ Agregar categoría</button>
-
-      <button onClick={guardar} disabled={saving} style={{
-        width: '100%', background: saved ? C.primary : C.dark, color: C.white, border: 'none',
-        borderRadius: 12, padding: '0.875rem', fontSize: '0.88rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-body)'
-      }}>{saving ? 'Guardando...' : saved ? '✅ Guardado' : 'Guardar gastos del mes'}</button>
-
-      <button onClick={restablecer} disabled={saving} style={{
-        width: '100%', background: 'transparent', color: C.muted, border: `1px solid ${C.light}`,
-        borderRadius: 12, padding: '0.7rem', fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'var(--font-body)', marginTop: '0.6rem'
-      }}>↺ Restablecer este mes a los valores del balance</button>
-    </div>
-  )
-}
-
 export default function OwnerPortal({ onBack, onRevenue }) {
   const [seccion, setSeccion] = useState('resumen')
   const [data, setData] = useState(null)
@@ -493,28 +352,80 @@ export default function OwnerPortal({ onBack, onRevenue }) {
     finally { setLoading(false) }
   }
 
-  function setGastos(newGastos) {
-    setData(prev => ({ ...prev, gastos: newGastos }))
-  }
-
   const r = data?.resumen || {}
   const cb = data?.cloudbeds || {}
-  const ing = data?.gastos?.ingresos || {}
-  const cats = data?.gastos?.categorias || []
-  const catManualTotal = cats.reduce((a, c) => a + (c.lineas || []).reduce((s, l) => s + (Number(l.valor) || 0), 0), 0)
+  const p = data?.pnl || null
+  const cierre = !!data?.tieneCierre
 
-  // Filas de liquidación (dinámicas por categoría) — sin fee fijo
-  const liqRows = []
-  liqRows.push({ label: 'Ingresos habitaciones', val: ing.habitaciones, type: 'ingreso' })
-  liqRows.push({ label: 'Ingresos terraza (F&B)', val: ing.terraza, type: 'ingreso' })
-  liqRows.push({ label: 'Ingresos SPA', val: ing.spa, type: 'ingreso' })
-  liqRows.push({ label: 'Upselling y otros', val: (ing.upselling || 0) + (ing.otrosIngresos || 0), type: 'ingreso' })
-  liqRows.push({ label: '─── TOTAL INGRESOS', val: r.totalIngresos, type: 'subtotal' })
-  ;(data?.categoriasResumen || []).forEach(c => liqRows.push({ label: `${c.emoji || ''} ${c.label}`.trim(), val: -(c.subtotal || 0), type: 'gasto' }))
-  if (r.totalRecibos > 0) liqRows.push({ label: '🧾 Recibos PDF', val: -r.totalRecibos, type: 'gasto' })
-  liqRows.push({ label: '─── GOP (Gross Operating Profit)', val: r.GOP, type: 'subtotal' })
-  liqRows.push({ label: 'Fee variable SOLARA (5% GOP)', val: -r.feeSolaraVariable, type: 'fee' })
-  liqRows.push({ label: '═══ UTILIDAD NETA', val: r.utilidadNeta, type: 'total' })
+  // ===== Filas de la liquidación USALI (estructura del board) =====
+  function buildLiq() {
+    if (!p) return []
+    const rows = []
+    const L = (label, node, type = 'line', indent = true) =>
+      rows.push({ label, ppto: node?.ppto || 0, real: node?.real || 0, type, indent })
+
+    // Ingresos
+    rows.push({ label: 'INGRESOS OPERATIVOS', type: 'header' })
+    L('Habitaciones', p.ingresos.habitaciones)
+    L('A&B · The Terrace', p.ingresos.ab)
+    L('AKEN Spa', p.ingresos.spa)
+    L('Otros (Minibar)', p.ingresos.otros)
+    L('─── Ingreso total', p.ingresos.total, 'subtotal', false)
+
+    // Utilidad departamental
+    rows.push({ label: 'UTILIDAD DEPARTAMENTAL', type: 'header' })
+    L('Habitaciones', p.utilidad.habitaciones)
+    L('A&B · The Terrace', p.utilidad.ab)
+    L('AKEN Spa', p.utilidad.spa)
+    L('Otros departamentos', p.utilidad.otros)
+    L('Arrendamientos y recobros', p.utilidad.arrendamientos)
+    L('─── Utilidad departamental', p.utilidad.departamental, 'subtotal', false)
+
+    // Gastos no distribuidos
+    rows.push({ label: 'GASTOS NO DISTRIBUIDOS', type: 'header' })
+    L('Administración y generales', p.noDistribuidos.admon)
+    if (p.feeSolara?.aplicado) rows.push({ label: '↳ Asesoría · Fee gestión SOLARA', ppto: p.feeSolara.total, real: 0, type: 'note', indent: true })
+    L('Mercadeo y ventas', p.noDistribuidos.mercadeo)
+    L('Mantenimiento y fuerza', p.noDistribuidos.mantenimiento)
+    L('─── Total no distribuidos', p.noDistribuidos.total, 'subtotal', false)
+
+    // GOP
+    L('═══ GOP (Gross Operating Profit)', p.gop, 'gop', false)
+
+    // Operador
+    rows.push({ label: 'OPERADOR', type: 'header' })
+    L('Utilidad bruta operador (10%)', p.operador.bruta)
+    L('Fee de marca', p.operador.feeMarca)
+    L('─── Utilidad total operador', p.operador.total, 'subtotal', false)
+
+    // Inversionistas
+    L('═══ Utilidad inversionistas', p.inversionistas.total, 'gop', false)
+    L('FARA', p.inversionistas.fara)
+    L('Predial', p.inversionistas.predial)
+    L('Fiducia', p.inversionistas.fiducia)
+    L('Póliza de seguros', p.inversionistas.poliza)
+    L('═══ UTILIDAD A DISTRIBUIR', p.inversionistas.distribuir, 'final', false)
+
+    return rows
+  }
+  const liq = buildLiq()
+
+  // Líneas de "gasto" (utilidad/no distribuidos restan, se muestran en negativo en la columna)
+  const esResta = (label) =>
+    /^(Administración|Mercadeo|Mantenimiento|─── Total no distribuidos|Utilidad bruta operador|Fee de marca|─── Utilidad total operador|FARA|Predial|Fiducia|Póliza)/.test(label)
+
+  function valColor(row) {
+    if (row.type === 'final') return (cierre ? row.real : row.ppto) >= 0 ? C.primary : C.coral
+    if (row.type === 'gop') return (cierre ? row.real : row.ppto) >= 0 ? C.primary : C.coral
+    if (row.type === 'subtotal') return '#ddd'
+    return '#aaa'
+  }
+
+  const ingTot = p ? (cierre ? p.ingresos.total.real : p.ingresos.total.ppto) : 0
+  const gopVal = p ? (cierre ? p.gop.real : p.gop.ppto) : 0
+  const distVal = p ? (cierre ? p.inversionistas.distribuir.real : p.inversionistas.distribuir.ppto) : 0
+  const cumpIng = p ? pct(p.ingresos.total.real, p.ingresos.total.ppto) : null
+  const cumpGop = p ? pct(p.gop.real, p.gop.ppto) : null
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-body)' }}>
@@ -525,7 +436,7 @@ export default function OwnerPortal({ onBack, onRevenue }) {
               <span style={{ color: C.primary, fontSize: 16, letterSpacing: 3, fontWeight: 700, fontFamily: 'var(--font-display)' }}>WELLCOMM</span>
               <span style={{ color: C.muted, fontSize: 9, letterSpacing: 2 }}>✳ PROPIETARIOS</span>
             </div>
-            <div style={{ color: '#aaa', fontSize: 11, marginTop: 2 }}>{mes}</div>
+            <div style={{ color: '#aaa', fontSize: 11, marginTop: 2 }}>{mes} · {cierre ? 'Cierre oficial' : 'En curso'}</div>
           </div>
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
             {onRevenue && (
@@ -541,8 +452,8 @@ export default function OwnerPortal({ onBack, onRevenue }) {
             <button key={s.id} onClick={() => setSeccion(s.id)} style={{
               flex: '0 0 auto', background: seccion === s.id ? C.primary : 'transparent',
               color: seccion === s.id ? C.dark : '#aaa', border: 'none', cursor: 'pointer',
-              padding: '8px 10px', fontSize: 9, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-              fontFamily: 'var(--font-body)', minWidth: 60,
+              padding: '8px 14px', fontSize: 9, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+              fontFamily: 'var(--font-body)', minWidth: 64,
             }}>
               <span style={{ fontSize: 14 }}>{s.icon}</span>
               <span style={{ fontWeight: seccion === s.id ? 700 : 400 }}>{s.label}</span>
@@ -556,10 +467,16 @@ export default function OwnerPortal({ onBack, onRevenue }) {
 
         {!loading && data && (
           <>
+            {/* ===== RESUMEN ===== */}
             {seccion === 'resumen' && (
               <div>
                 <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: 300, marginBottom: '0.25rem' }}>Resumen Ejecutivo</div>
-                <div style={{ fontSize: '0.78rem', color: C.muted, marginBottom: '1.25rem' }}>{mes} · WELLcomm Spa & Hotel</div>
+                <div style={{ fontSize: '0.78rem', color: C.muted, marginBottom: '1rem' }}>{mes} · WELLcomm Spa & Hotel</div>
+
+                <div style={{ display: 'inline-block', fontSize: '0.62rem', fontWeight: 600, letterSpacing: '0.05em', padding: '0.25rem 0.7rem', borderRadius: 20, marginBottom: '1rem',
+                  background: cierre ? `${C.primary}22` : `${C.gold}22`, color: cierre ? C.primaryDark : C.gold }}>
+                  {cierre ? '✓ CIERRE OFICIAL DEL BOARD' : '◷ MES EN CURSO · COMPARADO VS PRESUPUESTO'}
+                </div>
 
                 <div style={{ background: C.dark, borderRadius: 12, padding: '1rem', marginBottom: '1rem' }}>
                   <div style={{ fontSize: '0.68rem', color: C.primary, letterSpacing: '0.1em', marginBottom: '0.75rem' }}>✳ DATOS EN VIVO · CLOUDBEDS</div>
@@ -580,150 +497,178 @@ export default function OwnerPortal({ onBack, onRevenue }) {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
                   {[
-                    { icon: '💰', label: 'INGRESOS TOTALES', val: fmt(r.totalIngresos), sub: fmtCOP(r.totalIngresos), color: C.primary },
-                    { icon: '📋', label: 'GASTOS TOTALES', val: fmt(r.totalGastos), sub: fmtCOP(r.totalGastos), color: '#e67e22' },
-                    { icon: '📊', label: 'GOP', val: fmt(r.GOP), sub: 'Gross Operating Profit', color: r.GOP > 0 ? C.primary : '#e74c3c' },
-                    { icon: '✅', label: 'UTILIDAD NETA', val: fmt(r.utilidadNeta), sub: 'Después de fee SOLARA', color: r.utilidadNeta > 0 ? C.primary : '#e74c3c' },
+                    { icon: '💰', label: cierre ? 'INGRESO TOTAL (real)' : 'INGRESO TOTAL (ppto)', val: fmt(ingTot), sub: cumpIng != null && cierre ? `${cumpIng}% del presupuesto` : 'Hab + A&B + Spa', color: C.primary },
+                    { icon: '📊', label: cierre ? 'GOP (real)' : 'GOP (ppto)', val: fmt(gopVal), sub: cumpGop != null && cierre ? `${cumpGop}% del presupuesto` : 'Gross Operating Profit', color: gopVal >= 0 ? C.primary : C.coral },
+                    { icon: '🏛️', label: 'GASTOS TOTALES', val: fmt(r.totalGastos), sub: 'Hasta GOP', color: C.gold },
+                    { icon: '✅', label: 'UTILIDAD INVERSIONISTAS', val: fmt(distVal), sub: 'A distribuir', color: distVal >= 0 ? C.primary : C.coral },
                   ].map((k, i) => (
                     <div key={i} style={{ background: C.white, borderRadius: 12, padding: '1rem', border: `1px solid ${C.light}`, borderTop: `3px solid ${k.color}` }}>
                       <div style={{ fontSize: '1.2rem', marginBottom: '0.4rem' }}>{k.icon}</div>
-                      <div style={{ fontSize: '0.65rem', color: C.muted, marginBottom: '0.25rem' }}>{k.label}</div>
-                      <div style={{ fontSize: '1.3rem', fontWeight: 600, color: k.color, fontFamily: 'var(--font-display)' }}>{k.val}</div>
-                      <div style={{ fontSize: '0.65rem', color: C.muted, marginTop: '0.15rem' }}>{k.sub}</div>
+                      <div style={{ fontSize: '0.62rem', color: C.muted, marginBottom: '0.25rem' }}>{k.label}</div>
+                      <div style={{ fontSize: '1.25rem', fontWeight: 600, color: k.color, fontFamily: 'var(--font-display)' }}>{k.val}</div>
+                      <div style={{ fontSize: '0.62rem', color: C.muted, marginTop: '0.15rem' }}>{k.sub}</div>
                     </div>
                   ))}
                 </div>
 
-                <div style={{ background: C.dark, borderRadius: 12, padding: '1.25rem' }}>
-                  <div style={{ color: C.primary, fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.75rem', fontFamily: 'var(--font-display)' }}>✳ Fee SOLARA — {mes}</div>
-                  {[
-                    { label: `Fee variable (5% GOP)`, val: fmtCOP(r.feeSolaraVariable), color: '#aaa' },
-                    { label: 'Total fee SOLARA', val: fmtCOP(r.feeSolaraTotal), color: C.primary, bold: true },
-                  ].map((row, i) => (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: i < 1 ? `1px solid rgba(255,255,255,0.08)` : 'none' }}>
-                      <span style={{ fontSize: '0.78rem', color: '#888' }}>{row.label}</span>
-                      <span style={{ fontSize: '0.82rem', color: row.color, fontWeight: row.bold ? 700 : 400 }}>{row.val}</span>
-                    </div>
-                  ))}
+                {p && (
+                  <div style={{ background: C.white, borderRadius: 12, padding: '1.25rem', border: `1px solid ${C.light}`, marginBottom: '1rem' }}>
+                    <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', marginBottom: '1rem' }}>Ingresos por centro · {cierre ? 'real vs ppto' : 'presupuesto'}</div>
+                    {[
+                      { label: '🏨 Habitaciones', node: p.ingresos.habitaciones },
+                      { label: '🍽️ A&B · The Terrace', node: p.ingresos.ab },
+                      { label: '💆 AKEN Spa', node: p.ingresos.spa },
+                    ].map((it, i) => {
+                      const real = cierre ? it.node.real : it.node.ppto
+                      const c = pct(it.node.real, it.node.ppto)
+                      const base = Math.max(it.node.ppto, it.node.real, 1)
+                      return (
+                        <div key={i} style={{ marginBottom: '0.85rem' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                            <span style={{ fontSize: '0.8rem' }}>{it.label}</span>
+                            <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>{fmt(real)}{cierre && c != null ? <span style={{ color: c >= 90 ? C.primaryDark : C.coral, fontSize: '0.66rem', marginLeft: 6 }}>{c}%</span> : null}</span>
+                          </div>
+                          <div style={{ background: C.light, borderRadius: 4, height: 6, position: 'relative' }}>
+                            <div style={{ width: `${Math.min((it.node.ppto / base) * 100, 100)}%`, background: '#cdd6d1', height: 6, borderRadius: 4, position: 'absolute' }} />
+                            <div style={{ width: `${Math.min(((cierre ? it.node.real : it.node.ppto) / base) * 100, 100)}%`, background: C.primary, height: 6, borderRadius: 4, position: 'absolute' }} />
+                          </div>
+                        </div>
+                      )
+                    })}
+                    <div style={{ fontSize: '0.62rem', color: C.muted, marginTop: '0.5rem' }}>Barra clara = presupuesto · Barra verde = {cierre ? 'real' : 'presupuesto'}</div>
+                  </div>
+                )}
+
+                <div style={{ background: C.dark, borderRadius: 12, padding: '1.1rem 1.25rem' }}>
+                  <div style={{ color: C.gold, fontSize: '0.72rem', fontWeight: 600, marginBottom: '0.5rem', fontFamily: 'var(--font-display)' }}>✳ Fee de gestión SOLARA</div>
+                  {r.feeSolaraTotal > 0 ? (
+                    <>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.35rem 0' }}>
+                        <span style={{ fontSize: '0.74rem', color: '#888' }}>Fijo mensual</span>
+                        <span style={{ fontSize: '0.78rem', color: '#aaa' }}>{fmtCOP(r.feeSolaraFijo)}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.35rem 0' }}>
+                        <span style={{ fontSize: '0.74rem', color: '#888' }}>Variable (5% del GOP antes de fee)</span>
+                        <span style={{ fontSize: '0.78rem', color: '#aaa' }}>{fmtCOP(r.feeSolaraVariable)}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.35rem 0', borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: '0.25rem' }}>
+                        <span style={{ fontSize: '0.76rem', color: '#bbb', fontWeight: 600 }}>Total fee SOLARA</span>
+                        <span style={{ fontSize: '0.82rem', color: C.gold, fontWeight: 700 }}>{fmtCOP(r.feeSolaraTotal)}</span>
+                      </div>
+                      <div style={{ fontSize: '0.6rem', color: '#666', marginTop: '0.5rem' }}>Imputado en Asesoría (Administración y Generales), antes del GOP. Ya restado en la cascada de este mes.</div>
+                    </>
+                  ) : (
+                    <div style={{ fontSize: '0.68rem', color: '#888' }}>El fee de gestión SOLARA inició en mayo 2026. En los cierres reales Ene–Abr aún no aplicaba.</div>
+                  )}
                 </div>
               </div>
             )}
 
-            {seccion === 'ingresos' && (
+            {/* ===== LIQUIDACIÓN (P&L USALI) ===== */}
+            {seccion === 'liquidacion' && (
               <div>
-                <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: 300, marginBottom: '1.25rem' }}>Ingresos del Mes</div>
-                <div style={{ background: C.white, borderRadius: 12, padding: '1.25rem', marginBottom: '1rem', border: `1px solid ${C.light}` }}>
-                  <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', marginBottom: '1rem' }}>Por fuente</div>
-                  {[
-                    { label: '🏨 Habitaciones', val: ing.habitaciones, fuente: 'Cloudbeds' },
-                    { label: '🍕 Terraza / F&B', val: ing.terraza, fuente: 'Manual' },
-                    { label: '💆 SPA', val: ing.spa, fuente: 'Manual' },
-                    { label: '✨ Upselling', val: ing.upselling, fuente: 'Manual' },
-                    { label: '📦 Otros', val: ing.otrosIngresos, fuente: 'Manual' },
-                  ].map((item, i) => {
-                    const pct = r.totalIngresos > 0 ? Math.round(((item.val || 0) / r.totalIngresos) * 100) : 0
-                    return (
-                      <div key={i} style={{ marginBottom: '0.75rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
-                          <span style={{ fontSize: '0.82rem' }}>{item.label}</span>
-                          <span style={{ fontSize: '0.82rem', fontWeight: 600 }}>{fmtCOP(item.val)}</span>
-                        </div>
-                        <div style={{ background: C.light, borderRadius: 4, height: 6 }}>
-                          <div style={{ width: `${pct}%`, background: C.primary, height: 6, borderRadius: 4 }} />
-                        </div>
-                        <div style={{ fontSize: '0.65rem', color: C.muted, marginTop: '0.15rem' }}>{pct}% · Fuente: {item.fuente}</div>
-                      </div>
-                    )
-                  })}
-                  <div style={{ borderTop: `2px solid ${C.dark}`, paddingTop: '0.75rem', marginTop: '0.5rem', display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem' }}>Total ingresos</span>
-                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: 600, color: C.primary }}>{fmtCOP(r.totalIngresos)}</span>
-                  </div>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: 300, marginBottom: '0.25rem' }}>Liquidación · P&L Oficial</div>
+                <div style={{ fontSize: '0.78rem', color: C.muted, marginBottom: '1rem' }}>
+                  {mes} · estructura del board {cierre ? '· cierre real vs presupuesto' : '· presupuesto (mes sin cierre)'}
                 </div>
 
-                {cb.reservasActuales?.length > 0 && (
-                  <div style={{ background: C.white, borderRadius: 12, padding: '1.25rem', border: `1px solid ${C.light}` }}>
-                    <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', marginBottom: '0.75rem' }}>🏨 Huéspedes en casa · Cloudbeds</div>
-                    {cb.reservasActuales.map((r2, i) => (
-                      <div key={i} style={{ padding: '0.6rem 0', borderBottom: i < cb.reservasActuales.length - 1 ? `1px solid ${C.light}` : 'none', display: 'flex', justifyContent: 'space-between' }}>
-                        <div>
-                          <div style={{ fontSize: '0.82rem', fontWeight: 500 }}>{r2.huesped}</div>
-                          <div style={{ fontSize: '0.68rem', color: C.muted }}>Hab. {r2.habitacion} · Sale: {r2.checkout} · {r2.canal}</div>
+                {!p && <div style={{ color: C.muted }}>Sin datos de P&L para este mes.</div>}
+
+                {p && (
+                  <div style={{ background: C.dark, borderRadius: 14, padding: '1.25rem', marginBottom: '1rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                      <div style={{ color: C.primary, fontSize: '0.72rem', fontWeight: 600, fontFamily: 'var(--font-display)', letterSpacing: '0.08em' }}>✳ CUENTA DE RESULTADOS · {mes.toUpperCase()}</div>
+                    </div>
+
+                    {/* Cabecera de columnas */}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0', padding: '0 0 0.5rem', borderBottom: '1px solid rgba(255,255,255,0.15)' }}>
+                      <span style={{ width: 92, textAlign: 'right', fontSize: '0.6rem', color: '#888', letterSpacing: '0.05em' }}>PRESUP.</span>
+                      <span style={{ width: 92, textAlign: 'right', fontSize: '0.6rem', color: cierre ? C.primary : '#666', letterSpacing: '0.05em' }}>{cierre ? 'REAL' : 'EN CURSO'}</span>
+                    </div>
+
+                    {liq.map((row, i) => {
+                      if (row.type === 'header') {
+                        return (
+                          <div key={i} style={{ padding: '0.7rem 0 0.3rem' }}>
+                            <span style={{ fontSize: '0.62rem', color: C.gold, fontWeight: 700, letterSpacing: '0.08em' }}>{row.label}</span>
+                          </div>
+                        )
+                      }
+                      if (row.type === 'note') {
+                        return (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', padding: '0.1rem 0 0.35rem', paddingLeft: 16 }}>
+                            <span style={{ flex: 1, fontSize: '0.64rem', color: C.gold, fontStyle: 'italic' }}>{row.label}</span>
+                            <span style={{ width: 92, textAlign: 'right', fontSize: '0.64rem', color: C.gold, fontStyle: 'italic' }}>incl. {fmt(row.ppto)}</span>
+                            <span style={{ width: 92 }}></span>
+                          </div>
+                        )
+                      }
+                      const big = row.type === 'gop' || row.type === 'final'
+                      const sub = row.type === 'subtotal'
+                      const resta = esResta(row.label)
+                      const realShown = cierre ? row.real : null
+                      const fmtVal = (x, neg) => {
+                        if (x == null) return '—'
+                        const signed = neg && x !== 0 ? -Math.abs(x) : x
+                        return fmtCOP(signed)
+                      }
+                      return (
+                        <div key={i} style={{
+                          display: 'flex', alignItems: 'center', padding: big ? '0.6rem 0' : '0.32rem 0',
+                          borderBottom: big || sub ? '1px solid rgba(255,255,255,0.13)' : '1px solid rgba(255,255,255,0.04)',
+                          marginTop: big ? '0.4rem' : 0,
+                          background: row.type === 'gop' ? 'rgba(126,200,160,0.06)' : row.type === 'final' ? 'rgba(126,200,160,0.10)' : 'transparent',
+                          borderRadius: big ? 6 : 0, paddingLeft: big ? 8 : 0, paddingRight: big ? 8 : 0,
+                        }}>
+                          <span style={{ flex: 1, fontSize: big ? '0.8rem' : sub ? '0.74rem' : '0.72rem',
+                            color: big ? C.white : sub ? '#ddd' : '#9aa',
+                            fontWeight: big || sub ? 700 : 400, paddingLeft: row.indent && !big && !sub ? 8 : 0 }}>{row.label}</span>
+                          <span style={{ width: 92, textAlign: 'right', fontSize: big ? '0.78rem' : '0.7rem',
+                            color: sub || big ? '#cfd8d3' : '#7d8c84', fontWeight: big ? 700 : sub ? 600 : 400 }}>
+                            {fmtVal(row.ppto, resta)}
+                          </span>
+                          <span style={{ width: 92, textAlign: 'right', fontSize: big ? '0.82rem' : '0.72rem',
+                            color: big ? valColor(row) : sub ? '#fff' : '#cdd6d1', fontWeight: big || sub ? 700 : 500 }}>
+                            {fmtVal(realShown, resta)}
+                          </span>
                         </div>
-                        <div style={{ fontSize: '0.82rem', fontWeight: 600, color: C.primary }}>{fmtCOP(r2.total)}</div>
-                      </div>
-                    ))}
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* Cumplimiento */}
+                {p && cierre && (
+                  <div style={{ background: C.white, borderRadius: 12, padding: '1.25rem', border: `1px solid ${C.light}` }}>
+                    <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', marginBottom: '1rem' }}>Cumplimiento vs presupuesto</div>
+                    {[
+                      { label: 'Ingreso total', real: p.ingresos.total.real, ppto: p.ingresos.total.ppto },
+                      { label: 'Utilidad departamental', real: p.utilidad.departamental.real, ppto: p.utilidad.departamental.ppto },
+                      { label: 'GOP', real: p.gop.real, ppto: p.gop.ppto },
+                      { label: 'Utilidad a distribuir', real: p.inversionistas.distribuir.real, ppto: p.inversionistas.distribuir.ppto },
+                    ].map((k, i) => {
+                      const c = pct(k.real, k.ppto)
+                      const col = c == null ? C.muted : c >= 90 ? C.primaryDark : c >= 60 ? C.gold : C.coral
+                      return (
+                        <div key={i} style={{ marginBottom: '0.85rem' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
+                            <span style={{ fontSize: '0.78rem', color: C.muted }}>{k.label}</span>
+                            <span style={{ fontSize: '0.78rem', fontWeight: 600, color: col }}>{c == null ? '—' : `${c}%`}</span>
+                          </div>
+                          <div style={{ background: C.light, borderRadius: 4, height: 6 }}>
+                            <div style={{ width: `${Math.max(0, Math.min(Math.abs(c || 0), 100))}%`, background: col, height: 6, borderRadius: 4 }} />
+                          </div>
+                        </div>
+                      )
+                    })}
+                    <div style={{ fontSize: '0.62rem', color: C.muted, marginTop: '0.25rem' }}>Fuente: P&L oficial del board (PPTO2026). Habitaciones del mes corriente se actualiza en vivo con Cloudbeds.</div>
                   </div>
                 )}
               </div>
             )}
 
+            {/* ===== RECIBOS ===== */}
             {seccion === 'recibos' && <RecibosSection data={data} mes={mes} onReload={cargarDatos} />}
-
-            {seccion === 'gastos' && (
-              <div>
-                <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: 300, marginBottom: '0.25rem' }}>Gastos e Ingresos del Mes</div>
-                <div style={{ fontSize: '0.78rem', color: C.muted, marginBottom: '1.25rem' }}>Toca una categoría para expandirla y editar sus líneas. El mes arranca con los valores del mes anterior.</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '1.25rem' }}>
-                  {[
-                    { label: 'Gastos manuales', val: catManualTotal, color: '#e67e22' },
-                    { label: 'Recibos PDF', val: r.totalRecibos, color: '#9b59b6' },
-                  ].map((k, i) => (
-                    <div key={i} style={{ background: C.white, borderRadius: 10, padding: '0.75rem', border: `1px solid ${C.light}`, borderTop: `3px solid ${k.color}` }}>
-                      <div style={{ fontSize: '0.62rem', color: C.muted, marginBottom: '0.25rem' }}>{k.label}</div>
-                      <div style={{ fontSize: '1rem', fontWeight: 600, color: k.color, fontFamily: 'var(--font-display)' }}>{fmt(k.val)}</div>
-                    </div>
-                  ))}
-                </div>
-                <GastosEditor gastos={data.gastos} mes={mes} onChange={setGastos} onSaved={cargarDatos} />
-              </div>
-            )}
-
-            {seccion === 'liquidacion' && (
-              <div>
-                <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: 300, marginBottom: '0.25rem' }}>Liquidación Mensual</div>
-                <div style={{ fontSize: '0.78rem', color: C.muted, marginBottom: '0.75rem' }}>Resumen completo de {mes}</div>
-                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem' }}>
-                  <button onClick={() => exportarPDFInforme(data, mes)} style={{ flex: 1, background: C.dark, color: '#fff', border: 'none', borderRadius: 10, padding: '0.6rem', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-body)' }}>⬇ Exportar PDF</button>
-                  <button onClick={() => exportarExcelInforme(data, mes)} style={{ flex: 1, background: C.white, color: C.dark, border: `1px solid ${C.light}`, borderRadius: 10, padding: '0.6rem', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-body)' }}>⬇ Exportar Excel</button>
-                </div>
-                <div style={{ background: C.dark, borderRadius: 14, padding: '1.5rem', marginBottom: '1rem' }}>
-                  <div style={{ color: C.primary, fontSize: '0.78rem', fontWeight: 600, marginBottom: '1rem', fontFamily: 'var(--font-display)', letterSpacing: '0.1em' }}>✳ CUENTA DE RESULTADOS · {mes.toUpperCase()}</div>
-                  {liqRows.map((row, i) => (
-                    <div key={i} style={{
-                      display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0',
-                      borderBottom: ['subtotal', 'total'].includes(row.type) ? `1px solid rgba(255,255,255,0.15)` : `1px solid rgba(255,255,255,0.05)`,
-                      marginTop: row.type === 'total' ? '0.5rem' : 0
-                    }}>
-                      <span style={{ fontSize: row.type === 'total' ? '0.85rem' : '0.75rem', color: row.type === 'subtotal' ? '#ddd' : row.type === 'total' ? C.white : '#888', fontWeight: ['subtotal', 'total'].includes(row.type) ? 600 : 400 }}>{row.label}</span>
-                      <span style={{ fontSize: row.type === 'total' ? '0.95rem' : '0.82rem', fontWeight: ['subtotal', 'total'].includes(row.type) ? 700 : 400, color: row.type === 'total' ? (r.utilidadNeta >= 0 ? C.primary : '#e74c3c') : row.type === 'subtotal' ? '#ddd' : row.type === 'fee' ? '#e67e22' : (row.val >= 0 ? C.primary : '#888') }}>
-                        {row.val >= 0 ? fmtCOP(row.val) : `- ${fmtCOP(Math.abs(row.val))}`}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-
-                <div style={{ background: C.white, borderRadius: 12, padding: '1.25rem', border: `1px solid ${C.light}` }}>
-                  <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', marginBottom: '1rem' }}>Estructura de costos</div>
-                  {[
-                    { label: 'Gastos operativos / Ingresos', val: r.totalIngresos > 0 ? Math.round((r.totalCategorias / r.totalIngresos) * 100) : 0, color: '#3498db' },
-                    { label: 'Recibos PDF / Ingresos', val: r.totalIngresos > 0 ? Math.round((r.totalRecibos / r.totalIngresos) * 100) : 0, color: '#e67e22' },
-                    { label: 'Fee SOLARA / Ingresos', val: r.totalIngresos > 0 ? Math.round((r.feeSolaraTotal / r.totalIngresos) * 100) : 0, color: C.primary },
-                    { label: 'Margen neto', val: r.totalIngresos > 0 ? Math.round((r.utilidadNeta / r.totalIngresos) * 100) : 0, color: C.primaryDark },
-                  ].map((k, i) => (
-                    <div key={i} style={{ marginBottom: '0.75rem' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
-                        <span style={{ fontSize: '0.78rem', color: C.muted }}>{k.label}</span>
-                        <span style={{ fontSize: '0.78rem', fontWeight: 600, color: k.color }}>{k.val}%</span>
-                      </div>
-                      <div style={{ background: C.light, borderRadius: 4, height: 6 }}>
-                        <div style={{ width: `${Math.min(Math.abs(k.val), 100)}%`, background: k.color, height: 6, borderRadius: 4 }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </>
         )}
       </div>
