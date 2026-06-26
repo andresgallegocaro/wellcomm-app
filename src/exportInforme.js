@@ -1,7 +1,6 @@
 // Exportación con identidad WELLcomm
-// (1) Informe financiero mensual (Liquidación)  →  exportarPDFInforme / exportarExcelInforme
-// (2) Presupuesto vs Real · Habitaciones        →  exportarPDFPresupuesto / exportarExcelPresupuesto
-// (3) Ppto 360 · Líneas de negocio              →  exportarPDFP360 / exportarExcelP360
+// (1) Liquidación · P&L Oficial USALI (Owner Portal)  →  exportarPDFInforme / exportarExcelInforme
+// (2) Presupuesto vs Real · Habitaciones (Revenue)    →  exportarPDFPresupuesto / exportarExcelPresupuesto
 
 function fmtCOP(n) { return `COP ${Number(n || 0).toLocaleString('es-CO')}` }
 function signo(v) { return v >= 0 ? fmtCOP(v) : `- ${fmtCOP(Math.abs(v))}` }
@@ -26,77 +25,124 @@ function isotipo(color, size) {
   </svg>`
 }
 
-// Filas de la cuenta de resultados (P&L), sin fee fijo
-function filasPL(data) {
-  const r = data.resumen || {}
-  const ing = (data.gastos && data.gastos.ingresos) || {}
-  const cats = data.categoriasResumen || []
+// Filas de la cuenta de resultados USALI (estructura oficial del board).
+// Devuelve [label, ppto, real, tipo, resta]
+//   tipo: 'header' | 'in' | 'g' | 'sub' | 'gop' | 'fee' | 'final'
+//   real = null  -> mes sin cierre (se muestra "—")
+//   resta = true -> el monto se presenta en negativo
+function filasUSALI(data) {
+  const p = data.pnl
+  const cierre = !!data.tieneCierre
+  if (!p) return []
+  const R = (node) => cierre ? (node && node.real != null ? node.real : 0) : null
+  const P = (node) => (node && node.ppto != null ? node.ppto : 0)
   const rows = []
-  rows.push(['Ingresos habitaciones', ing.habitaciones || 0, 'in'])
-  rows.push(['Ingresos terraza (F&B)', ing.terraza || 0, 'in'])
-  rows.push(['Ingresos SPA', ing.spa || 0, 'in'])
-  rows.push(['Upselling y otros', (ing.upselling || 0) + (ing.otrosIngresos || 0), 'in'])
-  rows.push(['TOTAL INGRESOS', r.totalIngresos || 0, 'sub'])
-  cats.forEach(c => rows.push([`${c.emoji || ''} ${c.label}`.trim(), -(c.subtotal || 0), 'g']))
-  if ((r.totalRecibos || 0) > 0) rows.push(['Recibos PDF', -(r.totalRecibos || 0), 'g'])
-  rows.push(['GOP (Gross Operating Profit)', r.GOP || 0, 'sub'])
-  rows.push(['Fee variable SOLARA (5% GOP)', -(r.feeSolaraVariable || 0), 'fee'])
-  rows.push(['UTILIDAD NETA', r.utilidadNeta || 0, 'tot'])
+  const add = (label, node, tipo, resta = false) => rows.push([label, P(node), R(node), tipo, resta])
+  const head = (label) => rows.push([label, null, null, 'header', false])
+
+  head('INGRESOS OPERATIVOS')
+  add('Habitaciones', p.ingresos.habitaciones, 'in')
+  add('A&B · The Terrace', p.ingresos.ab, 'in')
+  add('AKEN Spa', p.ingresos.spa, 'in')
+  add('Otros (Minibar)', p.ingresos.otros, 'in')
+  add('Ingreso total', p.ingresos.total, 'sub')
+
+  head('UTILIDAD DEPARTAMENTAL')
+  add('Habitaciones', p.utilidad.habitaciones, 'in')
+  add('A&B · The Terrace', p.utilidad.ab, 'in')
+  add('AKEN Spa', p.utilidad.spa, 'in')
+  add('Otros departamentos', p.utilidad.otros, 'in')
+  add('Arrendamientos y recobros', p.utilidad.arrendamientos, 'in')
+  add('Utilidad departamental', p.utilidad.departamental, 'sub')
+
+  head('GASTOS NO DISTRIBUIDOS')
+  add('Administración y generales', p.noDistribuidos.admon, 'g', true)
+  if (p.feeSolara && p.feeSolara.aplicado)
+    rows.push(['↳ Asesoría · Fee gestión SOLARA', p.feeSolara.total, null, 'fee', false])
+  add('Mercadeo y ventas', p.noDistribuidos.mercadeo, 'g', true)
+  add('Mantenimiento y fuerza', p.noDistribuidos.mantenimiento, 'g', true)
+  add('Total no distribuidos', p.noDistribuidos.total, 'sub', true)
+
+  add('GOP · Gross Operating Profit', p.gop, 'gop')
+
+  head('OPERADOR')
+  add('Utilidad bruta operador (10%)', p.operador.bruta, 'g', true)
+  add('Fee de marca', p.operador.feeMarca, 'g', true)
+  add('Utilidad total operador', p.operador.total, 'sub', true)
+
+  add('Utilidad inversionistas', p.inversionistas.total, 'gop')
+  add('FARA', p.inversionistas.fara, 'g', true)
+  add('Predial', p.inversionistas.predial, 'g', true)
+  add('Fiducia', p.inversionistas.fiducia, 'g', true)
+  add('Póliza de seguros', p.inversionistas.poliza, 'g', true)
+  add('UTILIDAD A DISTRIBUIR', p.inversionistas.distribuir, 'final')
+
   return rows
+}
+
+// Valor con signo para una celda (resta -> negativo). null -> guion.
+function cel(v, resta) {
+  if (v == null) return '—'
+  const x = (resta && v !== 0) ? -Math.abs(v) : v
+  return signo(x)
 }
 
 // ===================== EXCEL — INFORME FINANCIERO (.xls) =====================
 export function exportarExcelInforme(data, mes) {
   if (!data) return
   const r = data.resumen || {}
-  const ing = (data.gastos && data.gastos.ingresos) || {}
-  const cats = (data.gastos && data.gastos.categorias) || []
+  const cierre = !!data.tieneCierre
   const recibos = data.recibos || []
-  const pl = filasPL(data)
+  const filas = filasUSALI(data)
+  const fee = (data.pnl && data.pnl.feeSolara) || {}
 
   const th = `style="background:${MARCA.negro};color:#fff;padding:6px 10px;font-weight:bold;text-align:left"`
-  const tsage = `style="background:${MARCA.sage};color:${MARCA.negro};padding:6px 10px;font-weight:bold"`
+  const thr = `style="background:${MARCA.negro};color:#fff;padding:6px 10px;font-weight:bold;text-align:right"`
   const td = `style="padding:5px 10px;border-bottom:1px solid #e5e5e5"`
   const tdr = `style="padding:5px 10px;border-bottom:1px solid #e5e5e5;text-align:right"`
 
   let h = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"></head><body style="font-family:Arial,sans-serif">`
 
   h += `<table><tr><td style="font-size:20px;font-weight:bold;color:${MARCA.negro}">✳ WELLCOMM &nbsp;Spa &amp; Hotel</td></tr>
-  <tr><td style="font-size:13px;color:${MARCA.muted}">Informe Financiero · ${mes}</td></tr>
+  <tr><td style="font-size:13px;color:${MARCA.muted}">Liquidación · P&L Oficial (USALI) · ${mes}${cierre ? ' · Cierre real vs presupuesto' : ' · Presupuesto (mes sin cierre)'}</td></tr>
   <tr><td style="font-size:11px;color:${MARCA.muted}">Where you are the luxury</td></tr></table><br/>`
 
-  h += `<table border="0" cellspacing="0"><tr><td ${th}>Indicador</td><td ${th}>Valor</td></tr>
+  h += `<table border="0" cellspacing="0"><tr><td ${th}>Indicador en vivo (Cloudbeds)</td><td ${thr}>Valor</td></tr>
   <tr><td ${td}>Ocupación</td><td ${tdr}>${r.ocupacion || 0}%</td></tr>
   <tr><td ${td}>ADR</td><td ${tdr}>${fmtCOP(r.adr)}</td></tr>
   <tr><td ${td}>RevPAR</td><td ${tdr}>${fmtCOP(r.revpar)}</td></tr>
   <tr><td ${td}>Noches vendidas</td><td ${tdr}>${r.noches || 0}</td></tr></table><br/>`
 
-  h += `<table border="0" cellspacing="0"><tr><td ${th}>Cuenta de Resultados</td><td ${th}>Monto</td></tr>`
-  pl.forEach(([label, val, tipo]) => {
-    const bg = tipo === 'sub' ? `background:#f0f0f0;font-weight:bold;` : tipo === 'tot' ? `background:${MARCA.sage};font-weight:bold;` : ''
-    h += `<tr><td style="padding:5px 10px;border-bottom:1px solid #e5e5e5;${bg}">${label}</td><td style="padding:5px 10px;border-bottom:1px solid #e5e5e5;text-align:right;${bg}">${signo(val)}</td></tr>`
+  h += `<table border="0" cellspacing="0"><tr><td ${th}>Cuenta de Resultados</td><td ${thr}>Presupuesto</td><td ${thr}>${cierre ? 'Real' : 'En curso'}</td></tr>`
+  filas.forEach(([label, ppto, real, tipo, resta]) => {
+    if (tipo === 'header') {
+      h += `<tr><td colspan="3" style="background:${MARCA.negro};color:${MARCA.sage};padding:6px 10px;font-weight:bold;letter-spacing:1px">${label}</td></tr>`
+      return
+    }
+    if (tipo === 'fee') {
+      h += `<tr><td style="padding:4px 10px 4px 22px;border-bottom:1px solid #f0f0f0;color:${MARCA.gold};font-style:italic">${label}</td><td style="padding:4px 10px;border-bottom:1px solid #f0f0f0;text-align:right;color:${MARCA.gold};font-style:italic">incl. ${fmtCOP(ppto)}</td><td style="border-bottom:1px solid #f0f0f0"></td></tr>`
+      return
+    }
+    const isBig = tipo === 'gop' || tipo === 'final'
+    const isSub = tipo === 'sub'
+    const bg = isBig ? `background:${MARCA.sage};font-weight:bold;` : isSub ? `background:#f0f0f0;font-weight:bold;` : ''
+    const lblColor = tipo === 'g' ? `color:${MARCA.muted};` : ''
+    h += `<tr><td style="padding:5px 10px;border-bottom:1px solid #e5e5e5;${bg}${lblColor}">${label}</td>` +
+         `<td style="padding:5px 10px;border-bottom:1px solid #e5e5e5;text-align:right;${bg}">${cel(ppto, resta)}</td>` +
+         `<td style="padding:5px 10px;border-bottom:1px solid #e5e5e5;text-align:right;${bg}">${cel(real, resta)}</td></tr>`
   })
   h += `</table><br/>`
 
-  h += `<table border="0" cellspacing="0"><tr><td ${th}>Ingresos por fuente</td><td ${th}>Monto</td></tr>
-  <tr><td ${td}>Habitaciones (Cloudbeds)</td><td ${tdr}>${fmtCOP(ing.habitaciones)}</td></tr>
-  <tr><td ${td}>Terraza / F&amp;B</td><td ${tdr}>${fmtCOP(ing.terraza)}</td></tr>
-  <tr><td ${td}>SPA</td><td ${tdr}>${fmtCOP(ing.spa)}</td></tr>
-  <tr><td ${td}>Upselling</td><td ${tdr}>${fmtCOP(ing.upselling)}</td></tr>
-  <tr><td ${td}>Otros</td><td ${tdr}>${fmtCOP(ing.otrosIngresos)}</td></tr></table><br/>`
-
-  h += `<table border="0" cellspacing="0"><tr><td ${th}>Detalle de gastos</td><td ${th}>Monto</td></tr>`
-  cats.forEach(cat => {
-    const sub = (cat.lineas || []).reduce((a, l) => a + (Number(l.valor) || 0), 0)
-    h += `<tr><td ${tsage}>${cat.emoji || ''} ${cat.label}</td><td style="background:${MARCA.sage};text-align:right;font-weight:bold;padding:6px 10px">${fmtCOP(sub)}</td></tr>`
-    ;(cat.lineas || []).forEach(l => {
-      h += `<tr><td ${td}>&nbsp;&nbsp;${l.label}</td><td ${tdr}>${fmtCOP(l.valor)}</td></tr>`
-    })
-  })
-  h += `</table><br/>`
+  if (fee.aplicado) {
+    h += `<table border="0" cellspacing="0"><tr><td ${th}>Fee de gestión SOLARA</td><td ${thr}>Monto</td></tr>
+    <tr><td ${td}>Fijo mensual</td><td ${tdr}>${fmtCOP(fee.fijo)}</td></tr>
+    <tr><td ${td}>Variable (5% del GOP antes de fee)</td><td ${tdr}>${fmtCOP(fee.variable)}</td></tr>
+    <tr><td style="padding:5px 10px;background:#f0f0f0;font-weight:bold">Total fee SOLARA</td><td style="padding:5px 10px;text-align:right;background:#f0f0f0;font-weight:bold">${fmtCOP(fee.total)}</td></tr></table>
+    <table><tr><td style="font-size:10px;color:${MARCA.muted};padding-top:4px">Imputado en Asesoría (Administración y Generales), antes del GOP.</td></tr></table><br/>`
+  }
 
   if (recibos.length) {
-    h += `<table border="0" cellspacing="0"><tr><td ${th}>Recibos del mes</td><td ${th}>Fecha</td><td ${th}>Categoría</td><td ${th}>Monto</td></tr>`
+    h += `<table border="0" cellspacing="0"><tr><td ${th}>Recibos del mes (anexo interno)</td><td ${th}>Fecha</td><td ${th}>Categoría</td><td ${thr}>Monto</td></tr>`
     recibos.forEach(rc => {
       h += `<tr><td ${td}>${rc.proveedor || ''}</td><td ${td}>${rc.fecha || ''}</td><td ${td}>${rc.categoria || ''}</td><td ${tdr}>${fmtCOP(rc.importe)}</td></tr>`
     })
@@ -109,7 +155,7 @@ export function exportarExcelInforme(data, mes) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `WELLcomm_Informe_${mes}.xls`
+  a.download = `WELLcomm_Liquidacion_${mes}.xls`
   document.body.appendChild(a); a.click(); document.body.removeChild(a)
   URL.revokeObjectURL(url)
 }
@@ -121,35 +167,35 @@ export function exportarPDFInforme(data, mes) {
   if (!w) { alert('Permite las ventanas emergentes para generar el PDF.'); return }
 
   const r = data.resumen || {}
-  const ing = (data.gastos && data.gastos.ingresos) || {}
-  const cats = (data.gastos && data.gastos.categorias) || []
+  const cierre = !!data.tieneCierre
   const recibos = data.recibos || []
-  const pl = filasPL(data)
+  const filas = filasUSALI(data)
+  const fee = (data.pnl && data.pnl.feeSolara) || {}
 
-  const plHTML = pl.map(([label, val, tipo]) => {
-    if (tipo === 'sub') return `<tr class="sub"><td>${label}</td><td>${signo(val)}</td></tr>`
-    if (tipo === 'tot') return `<tr class="tot"><td>${label}</td><td>${signo(val)}</td></tr>`
-    if (tipo === 'fee') return `<tr class="fee"><td>${label}</td><td>${signo(val)}</td></tr>`
-    if (tipo === 'g') return `<tr class="g"><td>${label}</td><td>${signo(val)}</td></tr>`
-    return `<tr><td>${label}</td><td>${signo(val)}</td></tr>`
+  const plHTML = filas.map(([label, ppto, real, tipo, resta]) => {
+    if (tipo === 'header') return `<tr class="sec"><td colspan="3">${label}</td></tr>`
+    if (tipo === 'fee') return `<tr class="fee"><td>${label}</td><td class="num">incl. ${fmtCOP(ppto)}</td><td class="num"></td></tr>`
+    const cls = tipo === 'sub' ? 'sub' : tipo === 'gop' ? 'gop' : tipo === 'final' ? 'tot' : tipo === 'g' ? 'g' : ''
+    return `<tr class="${cls}"><td>${label}</td><td class="num">${cel(ppto, resta)}</td><td class="num">${cel(real, resta)}</td></tr>`
   }).join('')
 
-  const gastosHTML = cats.map(cat => {
-    const sub = (cat.lineas || []).reduce((a, l) => a + (Number(l.valor) || 0), 0)
-    const lineas = (cat.lineas || []).map(l =>
-      `<tr class="g"><td style="padding-left:18px">${l.label}</td><td>${fmtCOP(l.valor)}</td></tr>`
-    ).join('')
-    return `<tr class="cat"><td>${cat.emoji || ''} ${cat.label}</td><td>${fmtCOP(sub)}</td></tr>${lineas}`
-  }).join('')
+  const feeHTML = fee.aplicado ? `
+    <h2>Fee de gestión SOLARA</h2>
+    <table class="tbl">
+      <tr><td>Fijo mensual</td><td style="text-align:right">${fmtCOP(fee.fijo)}</td></tr>
+      <tr><td>Variable (5% del GOP antes de fee)</td><td style="text-align:right">${fmtCOP(fee.variable)}</td></tr>
+      <tr class="cat"><td>Total fee SOLARA</td><td style="text-align:right">${fmtCOP(fee.total)}</td></tr>
+    </table>
+    <p class="note">Imputado en Asesoría (Administración y Generales), antes del GOP. Ya restado en la cascada de este mes.</p>` : ''
 
   const recibosHTML = recibos.length ? `
-    <h2>Recibos del mes</h2>
+    <h2>Recibos del mes <span class="anx">· anexo interno</span></h2>
     <table class="tbl">
       <tr class="head"><th>Proveedor</th><th>Fecha</th><th>Categoría</th><th style="text-align:right">Monto</th></tr>
       ${recibos.map(rc => `<tr><td>${rc.proveedor || ''}</td><td>${rc.fecha || ''}</td><td>${rc.categoria || ''}</td><td style="text-align:right">${fmtCOP(rc.importe)}</td></tr>`).join('')}
     </table>` : ''
 
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>WELLcomm · Informe ${mes}</title>
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>WELLcomm · Liquidación ${mes}</title>
   <style>
     @page { size: A4; margin: 16mm 14mm; }
     * { box-sizing: border-box; }
@@ -160,20 +206,25 @@ export function exportarPDFInforme(data, mes) {
     .head-bar .tag { font-size: 10px; color: #bbb; margin-top: 1px; font-style: italic; }
     .wrap { padding: 22px 26px; }
     h2 { font-family: Georgia, serif; font-size: 14px; font-weight: 600; margin: 22px 0 8px; color: ${MARCA.negro}; border-bottom: 2px solid ${MARCA.sage}; padding-bottom: 4px; }
-    .kpis { display: flex; gap: 10px; margin-top: 6px; }
+    h2 .anx { font-size: 10px; color: ${MARCA.muted}; font-weight: 400; font-style: italic; }
+    .badge { display:inline-block; font-size:10px; font-weight:700; letter-spacing:.5px; padding:3px 10px; border-radius:20px; margin-top:6px; }
+    .kpis { display: flex; gap: 10px; margin-top: 10px; }
     .kpi { flex: 1; border: 1px solid #e5e5e5; border-top: 3px solid ${MARCA.sage}; border-radius: 8px; padding: 10px 12px; }
     .kpi .v { font-size: 18px; font-weight: 700; }
     .kpi .l { font-size: 9px; color: ${MARCA.muted}; text-transform: uppercase; letter-spacing: .5px; }
     .tbl { width: 100%; border-collapse: collapse; font-size: 11px; }
     .tbl td, .tbl th { padding: 5px 8px; border-bottom: 1px solid #eee; }
-    .tbl td:last-child, .tbl th:last-child { text-align: right; white-space: nowrap; }
-    .tbl .head th { background: ${MARCA.negro}; color: #fff; text-align: left; }
+    .tbl th { background: ${MARCA.negro}; color: #fff; text-align: left; }
+    .tbl .num { text-align: right; white-space: nowrap; }
     .pl td { font-size: 11px; }
+    .pl .sec td { background: ${MARCA.negro}; color: ${MARCA.sage}; font-weight: 700; letter-spacing: 1px; font-size: 10px; text-transform: uppercase; }
     .pl .sub td { font-weight: 700; background: #f4f4f4; border-top: 1px solid #ccc; }
+    .pl .gop td { font-weight: 800; font-size: 12px; background: #eef7f1; border-top: 1px solid ${MARCA.sage}; }
     .pl .tot td { font-weight: 800; font-size: 13px; background: ${MARCA.sage}; }
     .pl .g td { color: ${MARCA.muted}; }
-    .pl .fee td { color: ${MARCA.gold}; }
+    .pl .fee td { color: ${MARCA.gold}; font-style: italic; }
     .pl .cat td { font-weight: 700; background: #fafafa; }
+    .note { font-size: 9px; color: ${MARCA.muted}; margin: 4px 0 0; }
     .footer { margin-top: 26px; border-top: 1px solid #e5e5e5; padding-top: 8px; font-size: 9px; color: ${MARCA.muted}; display: flex; justify-content: space-between; }
     .noprint { text-align: center; padding: 14px; }
     .noprint button { background: ${MARCA.negro}; color: #fff; border: none; border-radius: 8px; padding: 10px 18px; font-size: 13px; cursor: pointer; }
@@ -185,11 +236,12 @@ export function exportarPDFInforme(data, mes) {
       ${isotipo(MARCA.mint, 46)}
       <div>
         <div class="wm">WELLCOMM</div>
-        <div class="sub">SPA &amp; HOTEL · INFORME FINANCIERO · ${mes}</div>
+        <div class="sub">SPA &amp; HOTEL · LIQUIDACIÓN · P&L OFICIAL · ${mes}</div>
         <div class="tag">Where you are the luxury</div>
       </div>
     </div>
     <div class="wrap">
+      <div class="badge" style="background:${cierre ? '#e8f5ee' : '#faf3e2'};color:${cierre ? '#1d7a46' : MARCA.gold}">${cierre ? '✓ CIERRE OFICIAL DEL BOARD' : '◷ MES EN CURSO · VS PRESUPUESTO'}</div>
       <div class="kpis">
         <div class="kpi"><div class="v">${r.ocupacion || 0}%</div><div class="l">Ocupación</div></div>
         <div class="kpi"><div class="v">${fmtCOP(r.adr)}</div><div class="l">ADR</div></div>
@@ -197,19 +249,12 @@ export function exportarPDFInforme(data, mes) {
       </div>
 
       <h2>Cuenta de Resultados</h2>
-      <table class="tbl pl">${plHTML}</table>
-
-      <h2>Ingresos por fuente</h2>
-      <table class="tbl">
-        <tr><td>🏨 Habitaciones (Cloudbeds)</td><td>${fmtCOP(ing.habitaciones)}</td></tr>
-        <tr><td>🍷 Terraza / F&amp;B</td><td>${fmtCOP(ing.terraza)}</td></tr>
-        <tr><td>💆 SPA</td><td>${fmtCOP(ing.spa)}</td></tr>
-        <tr><td>✨ Upselling</td><td>${fmtCOP(ing.upselling)}</td></tr>
-        <tr><td>📦 Otros</td><td>${fmtCOP(ing.otrosIngresos)}</td></tr>
+      <table class="tbl pl">
+        <tr class="head"><th>Concepto</th><th class="num">Presupuesto</th><th class="num">${cierre ? 'Real' : 'En curso'}</th></tr>
+        ${plHTML}
       </table>
 
-      <h2>Detalle de gastos</h2>
-      <table class="tbl pl">${gastosHTML}</table>
+      ${feeHTML}
 
       ${recibosHTML}
 
@@ -217,6 +262,7 @@ export function exportarPDFInforme(data, mes) {
         <span>WELLcomm Spa &amp; Hotel · El Poblado, Medellín · Operación Wllmm SAS</span>
         <span>Generado ${new Date().toLocaleDateString('es-CO')}</span>
       </div>
+      <p class="note">Fuente: P&L oficial del board (PPTO2026, estructura USALI). Habitaciones del mes corriente se actualiza en vivo con Cloudbeds. ${fee.aplicado ? 'El fee de gestión SOLARA está proyectado en Asesoría para meses sin cierre.' : ''}</p>
     </div>
     <script>window.onload=function(){setTimeout(function(){window.print()},400)}</script>
   </body></html>`
@@ -362,154 +408,6 @@ export function exportarPDFPresupuesto(pptoData, mes) {
         ${filasHTML}
       </table>
       <div class="nota">El "real" se calcula en vivo desde Cloudbeds, noche por noche, sobre las reservas válidas (check-in, check-out y confirmadas) del mes.</div>
-
-      ${anualBloque}
-
-      <div class="footer">
-        <span>WELLcomm Spa &amp; Hotel · El Poblado, Medellín · Operación Wllmm SAS</span>
-        <span>Generado ${new Date().toLocaleDateString('es-CO')}</span>
-      </div>
-    </div>
-    <script>window.onload=function(){setTimeout(function(){window.print()},400)}</script>
-  </body></html>`
-
-  w.document.open(); w.document.write(html); w.document.close()
-}
-
-// ===================== EXCEL — PPTO 360 · LÍNEAS DE NEGOCIO (.xls) =====================
-export function exportarExcelP360(p360Data, mes) {
-  if (!p360Data || !p360Data.lineas) { alert('No hay datos de Ppto 360 para exportar.'); return }
-  const mesLabel = p360Data.mes || mes
-  const lineas = p360Data.lineas || []
-  const anual = p360Data.anual || []
-  const tot = p360Data.totalesAnio || {}
-
-  const th = `style="background:${MARCA.negro};color:#fff;padding:6px 10px;font-weight:bold;text-align:left"`
-  const td = `style="padding:5px 10px;border-bottom:1px solid #e5e5e5"`
-  const tdr = `style="padding:5px 10px;border-bottom:1px solid #e5e5e5;text-align:right"`
-
-  let h = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"></head><body style="font-family:Arial,sans-serif">`
-
-  h += `<table><tr><td style="font-size:20px;font-weight:bold;color:${MARCA.negro}">✳ WELLCOMM &nbsp;Spa &amp; Hotel</td></tr>
-  <tr><td style="font-size:13px;color:${MARCA.muted}">Ppto 360 · Líneas de negocio · ${mesLabel} 2026</td></tr>
-  <tr><td style="font-size:11px;color:${MARCA.muted}">Where you are the luxury</td></tr></table><br/>`
-
-  h += `<table><tr><td style="font-size:14px;font-weight:bold;color:${MARCA.negro}">Cumplimiento consolidado: ${p360Data.cumplimientoTotal}%</td></tr>
-  <tr><td style="font-size:11px;color:${MARCA.muted}">Real: ${fmtCOP(p360Data.totalReal)} &nbsp;·&nbsp; Presupuesto: ${fmtCOP(p360Data.totalPpto)}</td></tr></table><br/>`
-
-  h += `<table border="0" cellspacing="0"><tr><td ${th}>Línea de negocio</td><td ${th}>Presupuesto</td><td ${th}>Real</td><td ${th}>Diferencia</td><td ${th}>%</td></tr>`
-  lineas.forEach(l => {
-    const dif = (l.real || 0) - (l.ppto || 0)
-    h += `<tr><td ${td}>${l.label}</td><td ${tdr}>${fmtCOP(l.ppto)}</td><td style="padding:5px 10px;border-bottom:1px solid #e5e5e5;text-align:right;font-weight:bold">${fmtCOP(l.real)}</td><td style="padding:5px 10px;border-bottom:1px solid #e5e5e5;text-align:right;color:${dif >= 0 ? '#27ae60' : MARCA.coral}">${signo(dif)}</td><td style="padding:5px 10px;border-bottom:1px solid #e5e5e5;text-align:right;font-weight:bold;color:${colorCump(l.cumplimiento)}">${l.cumplimiento}%</td></tr>`
-  })
-  h += `<tr><td style="background:${MARCA.sage};padding:6px 10px;font-weight:bold">TOTAL CONSOLIDADO</td><td style="background:${MARCA.sage};padding:6px 10px;text-align:right;font-weight:bold">${fmtCOP(p360Data.totalPpto)}</td><td style="background:${MARCA.sage};padding:6px 10px;text-align:right;font-weight:bold">${fmtCOP(p360Data.totalReal)}</td><td style="background:${MARCA.sage};padding:6px 10px;text-align:right;font-weight:bold">${signo((p360Data.totalReal || 0) - (p360Data.totalPpto || 0))}</td><td style="background:${MARCA.sage};padding:6px 10px;text-align:right;font-weight:bold">${p360Data.cumplimientoTotal}%</td></tr></table><br/>`
-
-  if (anual.length) {
-    h += `<table border="0" cellspacing="0"><tr><td ${th}>Mes</td><td ${th}>Habitaciones</td><td ${th}>A&amp;B</td><td ${th}>Spa</td><td ${th}>Total</td></tr>`
-    anual.forEach(m => {
-      const bg = m.esMesActual ? `background:${MARCA.sage};font-weight:bold;` : ''
-      h += `<tr><td style="padding:5px 10px;border-bottom:1px solid #e5e5e5;${bg}">${m.mes}</td><td style="padding:5px 10px;border-bottom:1px solid #e5e5e5;text-align:right;${bg}">${fmtCOP(m.habitaciones)}</td><td style="padding:5px 10px;border-bottom:1px solid #e5e5e5;text-align:right;${bg}">${fmtCOP(m.ab)}</td><td style="padding:5px 10px;border-bottom:1px solid #e5e5e5;text-align:right;${bg}">${fmtCOP(m.spa)}</td><td style="padding:5px 10px;border-bottom:1px solid #e5e5e5;text-align:right;font-weight:bold;${bg}">${fmtCOP(m.total)}</td></tr>`
-    })
-    h += `<tr><td style="background:${MARCA.negro};color:#fff;padding:6px 10px;font-weight:bold">TOTAL AÑO</td><td style="background:${MARCA.negro};color:#fff;padding:6px 10px;text-align:right;font-weight:bold">${fmtCOP(tot.habitaciones)}</td><td style="background:${MARCA.negro};color:#fff;padding:6px 10px;text-align:right;font-weight:bold">${fmtCOP(tot.ab)}</td><td style="background:${MARCA.negro};color:#fff;padding:6px 10px;text-align:right;font-weight:bold">${fmtCOP(tot.spa)}</td><td style="background:${MARCA.negro};color:#fff;padding:6px 10px;text-align:right;font-weight:bold">${fmtCOP(tot.total)}</td></tr></table>`
-  }
-
-  h += `</body></html>`
-
-  const blob = new Blob(['\ufeff', h], { type: 'application/vnd.ms-excel' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `WELLcomm_Ppto360_${mes}.xls`
-  document.body.appendChild(a); a.click(); document.body.removeChild(a)
-  URL.revokeObjectURL(url)
-}
-
-// ===================== PDF — PPTO 360 · LÍNEAS DE NEGOCIO =====================
-export function exportarPDFP360(p360Data, mes) {
-  if (!p360Data || !p360Data.lineas) { alert('No hay datos de Ppto 360 para exportar.'); return }
-  const w = window.open('', '_blank')
-  if (!w) { alert('Permite las ventanas emergentes para generar el PDF.'); return }
-
-  const mesLabel = p360Data.mes || mes
-  const lineas = p360Data.lineas || []
-  const anual = p360Data.anual || []
-  const tot = p360Data.totalesAnio || {}
-  const difTotal = (p360Data.totalReal || 0) - (p360Data.totalPpto || 0)
-
-  const lineasHTML = lineas.map(l => {
-    const dif = (l.real || 0) - (l.ppto || 0)
-    return `<tr><td>${l.label}<div class="fuente">${l.fuente || ''}</div></td><td class="ppto">${fmtCOP(l.ppto)}</td><td class="real">${fmtCOP(l.real)}</td><td class="dif" style="color:${dif >= 0 ? '#27ae60' : MARCA.coral}">${signo(dif)}</td><td class="pct" style="color:${colorCump(l.cumplimiento)}">${l.cumplimiento}%</td></tr>`
-  }).join('')
-
-  const anualHTML = anual.map(m =>
-    `<tr${m.esMesActual ? ' class="hoy"' : ''}><td>${m.mes}</td><td style="text-align:right">${fmtCOP(m.habitaciones)}</td><td style="text-align:right">${fmtCOP(m.ab)}</td><td style="text-align:right">${fmtCOP(m.spa)}</td><td style="text-align:right;font-weight:700">${fmtCOP(m.total)}</td></tr>`
-  ).join('')
-
-  const anualBloque = anual.length ? `
-    <h2>Presupuesto anual consolidado 2026</h2>
-    <table class="tbl">
-      <tr class="head"><th>Mes</th><th style="text-align:right">Habitaciones</th><th style="text-align:right">A&amp;B</th><th style="text-align:right">Spa</th><th style="text-align:right">Total</th></tr>
-      ${anualHTML}
-      <tr class="totA"><td>TOTAL AÑO</td><td style="text-align:right">${fmtCOP(tot.habitaciones)}</td><td style="text-align:right">${fmtCOP(tot.ab)}</td><td style="text-align:right">${fmtCOP(tot.spa)}</td><td style="text-align:right">${fmtCOP(tot.total)}</td></tr>
-    </table>` : ''
-
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>WELLcomm · Ppto 360 ${mes}</title>
-  <style>
-    @page { size: A4; margin: 16mm 14mm; }
-    * { box-sizing: border-box; }
-    body { font-family: 'Helvetica Neue', Arial, sans-serif; color: ${MARCA.negro}; margin: 0; }
-    .head-bar { background: ${MARCA.negro}; color: #fff; padding: 22px 26px; display: flex; align-items: center; gap: 16px; }
-    .head-bar .wm { font-size: 22px; font-weight: 800; letter-spacing: 4px; }
-    .head-bar .sub { font-size: 11px; color: ${MARCA.sage}; letter-spacing: 1px; margin-top: 2px; }
-    .head-bar .tag { font-size: 10px; color: #bbb; margin-top: 1px; font-style: italic; }
-    .wrap { padding: 22px 26px; }
-    .hero { background: ${MARCA.negro}; color: #fff; border-radius: 10px; padding: 18px 22px; margin-bottom: 6px; }
-    .hero .lbl { font-size: 10px; color: ${MARCA.sage}; letter-spacing: 2px; }
-    .hero .big { font-size: 40px; font-weight: 300; line-height: 1.1; color: ${colorCump(p360Data.cumplimientoTotal)}; }
-    .hero .sub2 { font-size: 12px; color: #ccc; margin-top: 4px; }
-    h2 { font-family: Georgia, serif; font-size: 14px; font-weight: 600; margin: 22px 0 8px; color: ${MARCA.negro}; border-bottom: 2px solid ${MARCA.sage}; padding-bottom: 4px; }
-    .tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
-    .tbl td, .tbl th { padding: 7px 8px; border-bottom: 1px solid #eee; }
-    .tbl .head th { background: ${MARCA.negro}; color: #fff; text-align: left; }
-    .tbl .head th:nth-child(n+2) { text-align: right; }
-    .tbl td.ppto { text-align: right; color: ${MARCA.muted}; }
-    .tbl td.real { text-align: right; font-weight: 700; }
-    .tbl td.dif { text-align: right; font-weight: 600; }
-    .tbl td.pct { text-align: right; font-weight: 800; }
-    .tbl .fuente { font-size: 9px; color: ${MARCA.muted}; font-weight: 400; }
-    .tbl tr.tot td { background: ${MARCA.sage}; font-weight: 800; }
-    .tbl tr.hoy td { background: ${MARCA.sage}40; font-weight: 700; }
-    .tbl tr.totA td { background: ${MARCA.negro}; color: #fff; font-weight: 800; }
-    .footer { margin-top: 26px; border-top: 1px solid #e5e5e5; padding-top: 8px; font-size: 9px; color: ${MARCA.muted}; display: flex; justify-content: space-between; }
-    .nota { font-size: 9px; color: ${MARCA.muted}; margin-top: 8px; font-style: italic; }
-    .noprint { text-align: center; padding: 14px; }
-    .noprint button { background: ${MARCA.negro}; color: #fff; border: none; border-radius: 8px; padding: 10px 18px; font-size: 13px; cursor: pointer; }
-    @media print { .noprint { display: none; } }
-  </style></head>
-  <body>
-    <div class="noprint"><button onclick="window.print()">⬇ Guardar como PDF / Imprimir</button></div>
-    <div class="head-bar">
-      ${isotipo(MARCA.mint, 46)}
-      <div>
-        <div class="wm">WELLCOMM</div>
-        <div class="sub">SPA &amp; HOTEL · PPTO 360 · LÍNEAS DE NEGOCIO · ${mesLabel.toUpperCase()} 2026</div>
-        <div class="tag">Where you are the luxury</div>
-      </div>
-    </div>
-    <div class="wrap">
-      <div class="hero">
-        <div class="lbl">INGRESOS TOTALES · CUMPLIMIENTO CONSOLIDADO</div>
-        <div class="big">${p360Data.cumplimientoTotal}%</div>
-        <div class="sub2">Real: ${fmtCOP(p360Data.totalReal)} &nbsp;·&nbsp; Presupuesto: ${fmtCOP(p360Data.totalPpto)} &nbsp;·&nbsp; ${difTotal >= 0 ? '▲' : '▼'} ${signo(difTotal)}</div>
-      </div>
-
-      <h2>Detalle por línea de negocio</h2>
-      <table class="tbl">
-        <tr class="head"><th>Línea</th><th>Presupuesto</th><th>Real</th><th>Diferencia</th><th>%</th></tr>
-        ${lineasHTML}
-        <tr class="tot"><td>TOTAL CONSOLIDADO</td><td style="text-align:right">${fmtCOP(p360Data.totalPpto)}</td><td style="text-align:right">${fmtCOP(p360Data.totalReal)}</td><td style="text-align:right">${signo(difTotal)}</td><td style="text-align:right">${p360Data.cumplimientoTotal}%</td></tr>
-      </table>
-      <div class="nota">Habitaciones en vivo desde Cloudbeds, noche por noche · A&amp;B y Spa desde los ingresos manuales del Portal del Propietario.</div>
 
       ${anualBloque}
 
