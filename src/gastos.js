@@ -167,3 +167,172 @@ export const GASTOS = [
   { codigo: '53952001', nombre: 'Multas sanciones y litigios', seccion: 'FINANCIEROS', real: { enero: 0, febrero: -1048000, marzo: -524000, abril: 0, mayo: 0 } },
   { codigo: '53958101', nombre: 'Ajuste al peso', seccion: 'FINANCIEROS', real: { enero: -10719, febrero: 185, marzo: 344, abril: -555, mayo: -15141 } },
   { codigo: '53958102', nombre: 'Ajuste al peso retencion en la fuente', seccion: 'FINANCIEROS', real: { enero: 0, febrero: -139, marzo: 0, abril: 0, mayo: 0 } },
+{ codigo: '53959502', nombre: 'Gastos no deducibles', seccion: 'FINANCIEROS', real: { enero: 0, febrero: 0, marzo: -4008586, abril: 0, mayo: 0 } },
+  // ── Costos directos · Habitaciones y experiencias ──
+  { codigo: '61400501', nombre: 'Desayuno invitados', seccion: 'COSTOS_HAB', real: { enero: -12617636, febrero: -10265060, marzo: -6043680, abril: -4783494, mayo: -7548776 } },
+  { codigo: '61400502', nombre: 'Alimentos y bebidas (transferencia OWS)', seccion: 'COSTOS_HAB', real: { enero: 19905780, febrero: 18982257, marzo: 25720101, abril: 19527676, mayo: 14438257 } },
+  { codigo: '61400503', nombre: 'Experiencias Hotel', seccion: 'COSTOS_HAB', real: { enero: -150442, febrero: -108121, marzo: -332855, abril: -52873, mayo: 0 } },
+  { codigo: '61703001', nombre: 'Servicio de musicalizacion - Brandtrack', seccion: 'COSTOS_HAB', real: { enero: -309510, febrero: -659510, marzo: -309510, abril: -309510, mayo: -309510 } },
+  { codigo: '61703501', nombre: 'PMS', seccion: 'COSTOS_HAB', real: { enero: -976718, febrero: -713254, marzo: 0, abril: -293296, mayo: -736428 } },
+  { codigo: '61705001', nombre: 'Lavanderia y similares', seccion: 'COSTOS_HAB', real: { enero: -9339154, febrero: -9320139, marzo: -8158500, abril: -3481200, mayo: -8713017 } },
+  { codigo: '61705005', nombre: 'Lavado de alfombras y muebles', seccion: 'COSTOS_HAB', real: { enero: 0, febrero: 0, marzo: 0, abril: 0, mayo: -105000 } },
+  { codigo: '61709505', nombre: 'Fumigacion (operacion)', seccion: 'COSTOS_HAB', real: { enero: 0, febrero: 0, marzo: 0, abril: -446407, mayo: -446407 } },
+  // ── Costos directos · Insumos de operacion ──
+  { codigo: '62050501', nombre: 'Lenceria y decoracion', seccion: 'COSTOS_OPER', real: { enero: 0, febrero: -1479779, marzo: -1551094, abril: -1729779, mayo: -2584181 } },
+  { codigo: '62050502', nombre: 'Elementos aseo y cafeteria (Op)', seccion: 'COSTOS_OPER', real: { enero: -29159, febrero: 0, marzo: 0, abril: 0, mayo: 0 } },
+  { codigo: '62050505', nombre: 'Muebles y enseres', seccion: 'COSTOS_OPER', real: { enero: 0, febrero: 0, marzo: 0, abril: -251933, mayo: 0 } },
+  { codigo: '62050506', nombre: 'Amenities', seccion: 'COSTOS_OPER', real: { enero: -1256051, febrero: -124447, marzo: -6115463, abril: -260756, mayo: -29510 } },
+  { codigo: '62050508', nombre: 'Elementos cafeteria', seccion: 'COSTOS_OPER', real: { enero: 0, febrero: -6000, marzo: 0, abril: 0, mayo: 0 } },
+  { codigo: '62050509', nombre: 'Implementos de aseo', seccion: 'COSTOS_OPER', real: { enero: -760000, febrero: -561739, marzo: -58579, abril: 0, mayo: 0 } },
+  { codigo: '62050510', nombre: 'Utiles, papeleria y fotocopias (Op)', seccion: 'COSTOS_OPER', real: { enero: -701700, febrero: 0, marzo: -279300, abril: -471900, mayo: 0 } },
+  { codigo: '62050513', nombre: 'Minibar', seccion: 'COSTOS_OPER', real: { enero: 0, febrero: -3117075, marzo: 0, abril: -367152, mayo: 0 } },
+  { codigo: '62451001', nombre: 'Mantenimiento y reparaciones (Op)', seccion: 'COSTOS_OPER', real: { enero: 0, febrero: -399159, marzo: -308539, abril: 0, mayo: 0 } },
+];
+
+// Cuentas del plan contable presentes en el informe pero SIN movimiento Ene–May.
+// Se conservan para reflejar el catalogo completo (todos los apartados).
+export const CUENTAS_SIN_MOVIMIENTO = [
+  { codigo: '5130300102', nombre: 'Seguros riesgo tecnologico' },
+  { codigo: '513060', nombre: 'Equipo electronico' },
+  { codigo: '51351501', nombre: 'Servicio tecnico' },
+  { codigo: '51352502', nombre: 'Servicios publicos - Alcantarillado' },
+  { codigo: '51353501', nombre: 'Servicios publicos - Telefono fijo' },
+  { codigo: '51353502', nombre: 'Servicios publicos - Celular' },
+  { codigo: '51359501', nombre: 'Otros' },
+  { codigo: '51400501', nombre: 'Notariales' },
+  { codigo: '51451501', nombre: 'Mantenimiento equipo de cocina' },
+  { codigo: '51451503', nombre: 'Recarga de extintores' },
+  { codigo: '51459905', nombre: 'Gastos Mtto y reparaciones Activacion Hotel' },
+  { codigo: '51500501', nombre: 'Instalaciones electricas' },
+  { codigo: '51509905', nombre: 'Gastos Adecuacion e instalacion' },
+  { codigo: '51956001', nombre: 'Casino y restaurante' },
+  { codigo: '51956501', nombre: 'Parqueaderos' },
+  { codigo: '51959905', nombre: 'Gastos diversos Activacion Hotel' },
+  { codigo: '52054801', nombre: 'Bonificaciones (Com)' },
+  { codigo: '52054802', nombre: 'Bonos alimenticios personal' },
+  { codigo: '52251001', nombre: 'Afiliaciones y sostenimiento (Com)' },
+  { codigo: '52551501', nombre: 'Pasajes aereos comercial' },
+  { codigo: '52950501', nombre: 'Comisiones (Com)' },
+  { codigo: '61409501', nombre: 'Decoraciones' },
+  { codigo: '61409502', nombre: 'Convenios transportes eventos' },
+  { codigo: '61810101', nombre: 'Utilidades socios' },
+  { codigo: '62050503', nombre: 'Insumos alimenticios' },
+  { codigo: '62050504', nombre: 'Alcohol y bebidas' },
+  { codigo: '62050507', nombre: 'Insumos lavanderia' },
+  { codigo: '62050514', nombre: 'Otros AA&BB' },
+  { codigo: '72050601', nombre: 'Sueldos (Op)' },
+  { codigo: '72051501', nombre: 'Horas extras y recargos (Op)' },
+  { codigo: '72052401', nombre: 'Incapacidades (Op)' },
+  { codigo: '72052701', nombre: 'Auxilio de transporte (Op)' },
+  { codigo: '72054801', nombre: 'Bonificaciones (Op)' },
+  { codigo: '99999999', nombre: 'Saldos iniciales por conciliar' },
+];
+
+// ── Mapeo PROPUESTO a las bolsas del presupuesto del board (USALI) ──
+// El board solo presupuesta gastos a nivel agregado; Siigo llega a nivel cuenta.
+// Esta correspondencia permite comparar Real (Siigo) vs Presupuesto (pnl2026.js)
+// en la vista Ppto 360. Ajustable. 'departamental' = ya neteado en la utilidad
+// departamental (no es gasto no distribuido); 'financiero' = bajo EBITDA.
+export const MAPEO_PRESUPUESTO = {
+  NOMINA_ADMIN:    'nd_admon',
+  HONORARIOS:      'nd_admon',
+  IMPUESTOS:       'nd_admon',
+  SEGUROS:         'nd_admon',
+  OTROS_OPS:       'nd_admon',
+  VIAJES:          'nd_admon',
+  NOMINA_COMERCIAL:'nd_mercadeo',
+  MARKETING:       'nd_mercadeo',
+  MANTENIMIENTO:   'nd_mtto',
+  SERVICIOS:       'nd_mtto',     // incluye agua-luz-fuerza del board
+  NOMINA_OPER:     'departamental',
+  CANALES_OTAS:    'departamental',
+  COSTOS_HAB:      'departamental',
+  COSTOS_OPER:     'departamental',
+  FINANCIEROS:     'financiero',
+};
+
+// ───────────────────────── Helpers ─────────────────────────
+
+export function realMes(cuenta, mes) {
+  return (cuenta && cuenta.real && cuenta.real[mes]) || 0;
+}
+
+export function totalCuenta(cuenta) {
+  return MESES_GASTOS.reduce((s, m) => s + realMes(cuenta, m), 0);
+}
+
+export function gastosDeSeccion(seccionId) {
+  return GASTOS.filter((c) => c.seccion === seccionId);
+}
+
+export function totalSeccionMes(seccionId, mes) {
+  return gastosDeSeccion(seccionId).reduce((s, c) => s + realMes(c, mes), 0);
+}
+
+export function totalSeccion(seccionId) {
+  return gastosDeSeccion(seccionId).reduce((s, c) => s + totalCuenta(c), 0);
+}
+
+export function totalBloqueMes(bloqueId, mes) {
+  return SECCIONES_GASTOS
+    .filter((s) => s.bloque === bloqueId)
+    .reduce((sum, s) => sum + totalSeccionMes(s.id, mes), 0);
+}
+
+export function totalBloque(bloqueId) {
+  return MESES_GASTOS.reduce((s, m) => s + totalBloqueMes(bloqueId, m), 0);
+}
+
+export function totalGeneralMes(mes) {
+  return GASTOS.reduce((s, c) => s + realMes(c, mes), 0);
+}
+
+export function acumulado() {
+  return GASTOS.reduce((s, c) => s + totalCuenta(c), 0);
+}
+
+// Resumen por bloque (para tarjetas). Devuelve [{ bloque, nombre, meses:{}, total }]
+export function resumenBloques() {
+  return Object.keys(BLOQUES_GASTOS).map((b) => {
+    const meses = {};
+    MESES_GASTOS.forEach((m) => (meses[m] = totalBloqueMes(b, m)));
+    return { bloque: b, nombre: BLOQUES_GASTOS[b], meses, total: totalBloque(b) };
+  });
+}
+
+// Resumen por seccion (para la vista Gastos detallada).
+export function resumenSecciones() {
+  return SECCIONES_GASTOS.map((s) => {
+    const meses = {};
+    MESES_GASTOS.forEach((m) => (meses[m] = totalSeccionMes(s.id, m)));
+    return {
+      id: s.id, nombre: s.nombre, bloque: s.bloque, meses,
+      total: totalSeccion(s.id), cuentas: gastosDeSeccion(s.id),
+    };
+  });
+}
+
+// Real agregado por bolsa de presupuesto (para Ppto 360).
+export function realPorBolsaPresupuesto(mes) {
+  const out = { nd_admon: 0, nd_mercadeo: 0, nd_mtto: 0, departamental: 0, financiero: 0 };
+  SECCIONES_GASTOS.forEach((s) => {
+    const bolsa = MAPEO_PRESUPUESTO[s.id];
+    if (bolsa) out[bolsa] += totalSeccionMes(s.id, mes);
+  });
+  return out;
+}
+
+// Objeto unico para servir desde el endpoint / consumir en el front.
+export function getGastos() {
+  return {
+    meses: MESES_GASTOS,
+    mesesCierre: MESES_CIERRE_GASTOS,
+    secciones: resumenSecciones(),
+    bloques: resumenBloques(),
+    sinMovimiento: CUENTAS_SIN_MOVIMIENTO,
+    totalesMes: MESES_GASTOS.reduce((o, m) => ((o[m] = totalGeneralMes(m)), o), {}),
+    granTotal: acumulado(),
+  };
+}
+
+export default getGastos;
