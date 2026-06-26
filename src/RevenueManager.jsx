@@ -1,5 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { exportarPDFPresupuesto, exportarExcelPresupuesto } from './exportInforme'
+import {
+  GASTOS, SECCIONES_GASTOS, BLOQUES_GASTOS, CUENTAS_SIN_MOVIMIENTO,
+  realMes, totalCuenta, gastosDeSeccion, totalSeccionMes, totalSeccion,
+  totalBloqueMes, totalBloque, totalGeneralMes, acumulado,
+} from '../api/gastos'
 
 function fmt(n) {
   if (!n) return '$0'
@@ -17,6 +22,7 @@ const TABS = [
   { id: 'eventos', label: '📅 Eventos' },
   { id: 'presupuesto', label: '📈 Ppto vs Real' },
   { id: 'ppto360', label: '💎 Ppto 360' },
+  { id: 'gastos', label: '🧾 Gastos' },
   { id: 'copilot', label: '🤖 Copilot' },
 ]
 
@@ -57,6 +63,10 @@ export default function RevenueManager({ onBack }) {
   const [p360Data, setP360Data] = useState(null)
   const [p360Loading, setP360Loading] = useState(false)
   const [p360Mes, setP360Mes] = useState(new Date().toISOString().slice(0, 7))
+
+  // Estado de Gastos (datos estáticos Siigo Ene–May, importados de api/gastos)
+  const [gastosPeriodo, setGastosPeriodo] = useState('acum')
+  const [gastosOpen, setGastosOpen] = useState(null)
 
   useEffect(() => { cargar() }, [])
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [copilotMsgs])
@@ -168,6 +178,29 @@ export default function RevenueManager({ onBack }) {
   const fmtPct = (v) => `${Math.round((v || 0) * 100)}%`
   const colorCumplimiento = (pct) => pct >= 95 ? '#27ae60' : pct >= 80 ? '#e67e22' : '#e74c3c'
   const MESES_CORTO = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+
+  // ── Helpers Gastos ──
+  const fmtGasto = (n) => {
+    const abs = Math.abs(n || 0)
+    const s = abs >= 1e6 ? `$${(abs / 1e6).toFixed(1).replace('.', ',')}M` : `$${Math.round(abs / 1000)}K`
+    return (n || 0) > 0 ? `+${s}` : s
+  }
+  const gValSeccion = (id) => gastosPeriodo === 'acum' ? totalSeccion(id) : totalSeccionMes(id, gastosPeriodo)
+  const gValBloque = (b) => gastosPeriodo === 'acum' ? totalBloque(b) : totalBloqueMes(b, gastosPeriodo)
+  const gValCuenta = (c) => gastosPeriodo === 'acum' ? totalCuenta(c) : realMes(c, gastosPeriodo)
+  const gTotalGen = gastosPeriodo === 'acum' ? acumulado() : totalGeneralMes(gastosPeriodo)
+  const gBloques = Object.keys(BLOQUES_GASTOS)
+    .map(b => ({ id: b, nombre: BLOQUES_GASTOS[b], val: gValBloque(b) }))
+    .sort((a, b) => a.val - b.val)
+  const gMaxAbs = Math.max(...gBloques.map(b => Math.abs(b.val)), 1)
+  const GASTOS_PERIODOS = [
+    { id: 'acum', label: 'Acum.' },
+    { id: 'enero', label: 'Ene' },
+    { id: 'febrero', label: 'Feb' },
+    { id: 'marzo', label: 'Mar' },
+    { id: 'abril', label: 'Abr' },
+    { id: 'mayo', label: 'May' },
+  ]
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--color-bg)', display: 'flex', flexDirection: 'column' }}>
@@ -724,6 +757,98 @@ export default function RevenueManager({ onBack }) {
                 No hay presupuesto cargado. Verifica que las bases de A&B y Spa en Notion estén conectadas a la integración WELLcomm App.
               </div>
             )}
+          </>
+        )}
+
+        {/* GASTOS */}
+        {tab === 'gastos' && (
+          <>
+            {/* Selector de periodo */}
+            <div style={{ display: 'flex', gap: '0.35rem', overflowX: 'auto', paddingBottom: '0.15rem' }}>
+              {GASTOS_PERIODOS.map(p => (
+                <button key={p.id} onClick={() => setGastosPeriodo(p.id)} style={{
+                  background: gastosPeriodo === p.id ? 'var(--color-text)' : 'white',
+                  color: gastosPeriodo === p.id ? 'white' : 'var(--color-text)',
+                  border: `1px solid ${gastosPeriodo === p.id ? 'var(--color-text)' : 'var(--color-border)'}`,
+                  borderRadius: 20, padding: '0.4rem 0.9rem', fontSize: '0.74rem',
+                  cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
+                  fontWeight: gastosPeriodo === p.id ? 600 : 400
+                }}>{p.label}</button>
+              ))}
+            </div>
+
+            {/* Total del periodo */}
+            <div style={{ background: 'var(--color-text)', borderRadius: 12, padding: '1.25rem', color: 'white' }}>
+              <div style={{ fontSize: '0.68rem', color: 'var(--color-primary)', letterSpacing: '0.1em', marginBottom: '0.5rem' }}>
+                GASTOS TOTALES · {gastosPeriodo === 'acum' ? 'ENE–MAY 2026' : `${gastosPeriodo.toUpperCase()} 2026`}
+              </div>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', fontWeight: 300 }}>{fmtGasto(gTotalGen)}</div>
+              <div style={{ fontSize: '0.72rem', color: '#aaa', marginTop: '0.25rem' }}>
+                {GASTOS.length} rubros contables · cierre real Siigo
+              </div>
+            </div>
+
+            {/* Composición por bloque */}
+            <div style={{ background: 'white', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--shadow)' }}>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', marginBottom: '0.75rem' }}>Composición del gasto</div>
+              {gBloques.map(b => {
+                const pct = Math.round((Math.abs(b.val) / Math.abs(gTotalGen || 1)) * 100)
+                const w = Math.round((Math.abs(b.val) / gMaxAbs) * 100)
+                return (
+                  <div key={b.id} style={{ marginBottom: '0.85rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
+                      <span style={{ fontSize: '0.76rem', fontWeight: 500 }}>{b.nombre}</span>
+                      <span style={{ fontSize: '0.74rem', fontWeight: 600, color: b.val > 0 ? '#27ae60' : 'var(--color-text)' }}>{fmtGasto(b.val)} · {pct}%</span>
+                    </div>
+                    <div style={{ background: 'var(--color-bg)', borderRadius: 4, height: 7 }}>
+                      <div style={{ width: `${w}%`, background: b.val > 0 ? '#27ae60' : 'var(--color-primary)', height: 7, borderRadius: 4 }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Detalle por rubro (apartados Siigo) */}
+            <div style={{ background: 'white', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--shadow)' }}>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', marginBottom: '0.25rem' }}>Detalle por rubro</div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--color-text-light)', marginBottom: '0.5rem' }}>Toca un apartado para ver sus cuentas</div>
+              {SECCIONES_GASTOS.map(s => {
+                const abierto = gastosOpen === s.id
+                const cuentas = gastosDeSeccion(s.id)
+                const v = gValSeccion(s.id)
+                return (
+                  <div key={s.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                    <div onClick={() => setGastosOpen(abierto ? null : s.id)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.7rem 0', cursor: 'pointer' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{ fontSize: '0.6rem', color: 'var(--color-text-light)', display: 'inline-block', transform: abierto ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}>▶</span>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 500 }}>{s.nombre}</span>
+                        <span style={{ fontSize: '0.62rem', color: 'var(--color-text-light)' }}>({cuentas.length})</span>
+                      </div>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 600, color: v > 0 ? '#27ae60' : 'var(--color-text)' }}>{fmtGasto(v)}</span>
+                    </div>
+                    {abierto && (
+                      <div style={{ paddingBottom: '0.5rem' }}>
+                        {cuentas.map(c => {
+                          const cv = gValCuenta(c)
+                          return (
+                            <div key={c.codigo} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.35rem 0 0.35rem 1.4rem', gap: '0.75rem' }}>
+                              <span style={{ fontSize: '0.72rem', color: 'var(--color-text-light)' }}>
+                                <span style={{ color: '#c4c4c4', marginRight: '0.4rem' }}>{c.codigo}</span>{c.nombre}
+                              </span>
+                              <span style={{ fontSize: '0.72rem', fontWeight: 500, flexShrink: 0, color: cv > 0 ? '#27ae60' : cv < 0 ? 'var(--color-text)' : '#ccc' }}>{cv === 0 ? '—' : fmtGasto(cv)}</span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+
+            <div style={{ fontSize: '0.68rem', color: 'var(--color-text-light)', textAlign: 'center' }}>
+              Cierre real Siigo Ene–May 2026 · cuadra peso por peso con el informe contable. {CUENTAS_SIN_MOVIMIENTO.length} cuentas adicionales sin movimiento en el periodo.
+            </div>
           </>
         )}
 
