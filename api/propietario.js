@@ -1,3 +1,5 @@
+import { getPnlMes, MESES_CIERRE } from './pnl2026.js'
+
 const KV_URL = process.env.KV_REST_API_URL
 const KV_TOKEN = process.env.KV_REST_API_TOKEN
 const NOTION_TOKEN = process.env.NOTION_TOKEN
@@ -466,7 +468,7 @@ export default async function handler(req, res) {
     // Los gastos y los ingresos de A&B/Spa ahora se gestionan en Notion.
     // Estos endpoints se conservan para no romper el front; no afectan la lectura.
     if (req.method === 'POST' && body.action === 'guardar_gastos') {
-      return res.status(200).json({ ok: true, info: 'Los gastos se gestionan en Notion (base 💸 Gastos WELLcomm Balance Siigo).' })
+      return res.status(200).json({ ok: true, info: 'Los gastos se gestionan en Notion (base 💸 Gastos WELLcomm 2026).' })
     }
     if (req.method === 'POST' && body.action === 'reset_gastos') {
       return res.status(200).json({ ok: true, info: 'Los gastos se gestionan en Notion.' })
@@ -474,25 +476,18 @@ export default async function handler(req, res) {
 
     if (req.method === 'GET') {
       const mes = req.query.mes || new Date().toISOString().slice(0, 7)
+      const mesNum = parseInt(mes.slice(5, 7), 10) || 1
 
-      const [cloudbeds, recibos, categoriasNotion, ingresosNotion] = await Promise.all([
+      const [cloudbeds, recibos] = await Promise.all([
         getCloudbedsData(mes),
-        kvGet(`recibos_${mes}`),
-        getGastosNotion(mes),
-        getIngresosNotion(mes)
+        kvGet(`recibos_${mes}`)
       ])
 
-      const gastos = {
-        ingresos: {
-          habitaciones: cloudbeds.ingresosMes,
-          terraza: ingresosNotion.terraza,
-          spa: ingresosNotion.spa,
-          upselling: ingresosNotion.upselling,
-          otrosIngresos: ingresosNotion.otrosIngresos
-        },
-        categorias: categoriasNotion
-      }
+      // ===== P&L OFICIAL DEL BOARD (estructura USALI) =====
+      const pnl = getPnlMes(mesNum)
+      const tieneCierre = pnl.tieneCierre  // true para Ene-Abr (con cierre real)
 
+      // Recibos PDF: gasto adicional interno, NO afecta el P&L oficial del board
       const recibosLista = recibos || []
       const gastosPorCategoria = {}
       CATEGORIAS.forEach(c => { gastosPorCategoria[c] = 0 })
@@ -503,26 +498,102 @@ export default async function handler(req, res) {
         totalRecibos += imp
       })
 
-      const categoriasResumen = (gastos.categorias || []).map(cat => {
-        const subtotal = (cat.lineas || []).reduce((a, l) => a + (Number(l.valor) || 0), 0)
-        return { id: cat.id, label: cat.label, emoji: cat.emoji, subtotal }
-      })
-      const totalCategorias = categoriasResumen.reduce((a, c) => a + c.subtotal, 0)
-      const totalGastos = totalCategorias + totalRecibos
-      const totalIngresos = Object.values(gastos.ingresos).reduce((a, b) => a + (Number(b) || 0), 0)
+      // Si el mes tiene cierre -> real; si no -> presupuesto como referencia
+      const val = (linea) => tieneCierre ? linea.real : linea.ppto
+      // Habitaciones del mes corriente sin cierre: Cloudbeds en vivo
+      const habReal = tieneCierre ? pnl.ing_hab.real : (cloudbeds.ingresosMes || 0)
+      // Ingreso total = suma de los 4 centros (sin recobros); los recobros van en utilidad
+      // departamental como en USALI. Así la liquidación cuadra tanto en ppto como en real.
+      const ingTotalPpto = pnl.ing_hab.ppto + pnl.ing_ab.ppto + pnl.ing_spa.ppto + pnl.ing_otros.ppto
+      const ingTotalReal = tieneCierre
+        ? (pnl.ing_hab.real + pnl.ing_ab.real + pnl.ing_spa.real + pnl.ing_otros.real)
+        : habReal
 
-      const GOP = totalIngresos - totalGastos
-      const feeSolaraVariable = Math.max(0, Math.round(GOP * 0.05))
-      const feeSolaraTotal = feeSolaraVariable
-      const utilidadNeta = GOP - feeSolaraTotal
+      // Estructura USALI para el front (cada línea: { ppto, real })
+      const pnlOut = {
+        ingresos: {
+          habitaciones: { ppto: pnl.ing_hab.ppto, real: habReal },
+          ab:           { ppto: pnl.ing_ab.ppto, real: pnl.ing_ab.real },
+          spa:          { ppto: pnl.ing_spa.ppto, real: pnl.ing_spa.real },
+          otros:        { ppto: pnl.ing_otros.ppto, real: pnl.ing_otros.real },
+          total:        { ppto: ingTotalPpto, real: ingTotalReal },
+        },
+        utilidad: {
+          habitaciones:   { ppto: pnl.util_hab.ppto, real: pnl.util_hab.real },
+          ab:             { ppto: pnl.util_ab.ppto, real: pnl.util_ab.real },
+          spa:            { ppto: pnl.util_spa.ppto, real: pnl.util_spa.real },
+          otros:          { ppto: pnl.util_otros.ppto, real: pnl.util_otros.real },
+          arrendamientos: { ppto: pnl.arrendamientos.ppto, real: pnl.arrendamientos.real },
+          departamental:  { ppto: pnl.util_departamental.ppto, real: pnl.util_departamental.real },
+        },
+        noDistribuidos: {
+          admon:         { ppto: pnl.nd_admon.ppto, real: pnl.nd_admon.real },
+          mercadeo:      { ppto: pnl.nd_mercadeo.ppto, real: pnl.nd_mercadeo.real },
+          mantenimiento: { ppto: pnl.nd_mtto.ppto, real: pnl.nd_mtto.real },
+          total:         { ppto: pnl.nd_total.ppto, real: pnl.nd_total.real },
+        },
+        gop: { ppto: pnl.gop.ppto, real: pnl.gop.real },
+        operador: {
+          bruta:    { ppto: pnl.op_bruta.ppto, real: pnl.op_bruta.real },
+          feeMarca: { ppto: pnl.op_feemarca.ppto, real: pnl.op_feemarca.real },
+          total:    { ppto: pnl.op_total.ppto, real: pnl.op_total.real },
+        },
+        inversionistas: {
+          total:      { ppto: pnl.inv_total.ppto, real: pnl.inv_total.real },
+          fara:       { ppto: pnl.inv_fara.ppto, real: pnl.inv_fara.real },
+          predial:    { ppto: pnl.inv_predial.ppto, real: pnl.inv_predial.real },
+          fiducia:    { ppto: pnl.inv_fiducia.ppto, real: pnl.inv_fiducia.real },
+          poliza:     { ppto: pnl.inv_poliza.ppto, real: pnl.inv_poliza.real },
+          distribuir: { ppto: pnl.inv_distribuir.ppto, real: pnl.inv_distribuir.real },
+        },
+      }
+
+      // ===== Fee de gestión SOLARA imputado en Asesoría (Administración y Generales) =====
+      // Va ANTES del GOP. El 5% variable se calcula sobre el GOP ANTES del fee.
+      // Solo se proyecta en meses SIN cierre (mayo+); el fee inició con SOLARA en mayo 2026.
+      // Ene-Abr no se tocan (cierre real, el fee aún no existía). Cuando un mes cierre con
+      // el fee ya contabilizado en Asesoría, dejará de proyectarse y se usará el real.
+      const aplicaFee = !tieneCierre
+      const gopAntesFee = pnlOut.gop.ppto
+      const feeSolaraVariable = aplicaFee ? Math.max(0, Math.round(gopAntesFee * 0.05)) : 0
+      const feeSolaraFijo = aplicaFee ? 8000000 : 0
+      const feeSolaraTotal = feeSolaraFijo + feeSolaraVariable
+
+      if (aplicaFee) {
+        // El fee se suma a Administración (Asesoría) y al total no distribuido; baja el GOP
+        pnlOut.noDistribuidos.admon.ppto += feeSolaraTotal
+        pnlOut.noDistribuidos.total.ppto += feeSolaraTotal
+        pnlOut.gop.ppto = gopAntesFee - feeSolaraTotal
+        // Recalcular cascada: operador 10% del GOP (fee de marca no depende del GOP)
+        pnlOut.operador.bruta.ppto = Math.round(pnlOut.gop.ppto * 0.10)
+        pnlOut.operador.total.ppto = pnlOut.operador.bruta.ppto + pnlOut.operador.feeMarca.ppto
+        pnlOut.inversionistas.total.ppto = pnlOut.gop.ppto - pnlOut.operador.total.ppto
+        pnlOut.inversionistas.distribuir.ppto = pnlOut.inversionistas.total.ppto
+          - pnlOut.inversionistas.fara.ppto - pnlOut.inversionistas.predial.ppto
+          - pnlOut.inversionistas.fiducia.ppto - pnlOut.inversionistas.poliza.ppto
+      }
+
+      pnlOut.feeSolara = {
+        aplicado: aplicaFee, fijo: feeSolaraFijo, variable: feeSolaraVariable, total: feeSolaraTotal,
+        gopAntesFee: aplicaFee ? gopAntesFee : 0,
+      }
+
+      // Resumen para tarjetas (real si hay cierre; ppto si no, ya con el fee proyectado)
+      const totalIngresos = ingTotalReal
+      const GOP = val(pnlOut.gop)
+      const utilidadInversionistas = val(pnlOut.inversionistas.distribuir)
+      const totalGastos = totalIngresos - GOP
 
       return res.status(200).json({
-        mes, cloudbeds, gastos,
+        mes, mesNum, tieneCierre, mesesCierre: MESES_CIERRE,
+        cloudbeds,
         recibos: recibosLista, gastosPorCategoria, totalRecibos, categorias: CATEGORIAS,
-        categoriasResumen,
+        pnl: pnlOut,
         resumen: {
-          totalIngresos, totalCategorias, totalRecibos, totalGastos,
-          GOP, feeSolaraVariable, feeSolaraTotal, utilidadNeta,
+          totalIngresos, totalGastos, GOP,
+          utilidadInversionistas, utilidadNeta: utilidadInversionistas,
+          feeSolaraVariable, feeSolaraFijo, feeSolaraTotal,
+          tieneCierre,
           ocupacion: cloudbeds.ocupacion, adr: cloudbeds.adr, revpar: cloudbeds.revpar,
           noches: cloudbeds.noches, totalReservas: cloudbeds.totalReservas, canales: cloudbeds.canales,
         }
